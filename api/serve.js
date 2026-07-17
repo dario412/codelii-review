@@ -10,7 +10,7 @@ function parseServePath(url) {
   }
   return {
     projectId: u.searchParams.get('projectId'),
-    path: decodeURIComponent(u.searchParams.get('path') || '').replace(/^\//, ''),
+    path: decodeURIComponent(u.searchParams.get('path') || '').replace(/^\/+/, ''),
   };
 }
 

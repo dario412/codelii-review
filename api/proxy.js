@@ -7,24 +7,24 @@ const BROWSER_UA =
 
 function parseProxyPath(url) {
   const u = new URL(url);
-  const m = u.pathname.match(/^\/p\/([^/]+)(?:\/(.*))?$/);
-  if (m) {
-    return { projectId: m[1], path: m[2] || '', search: u.search };
-  }
-  // Vercel / local rewrite: /api/proxy?projectId=&path=
-  const projectId = u.searchParams.get('projectId');
-  let path = u.searchParams.get('path') || '';
-  path = decodeURIComponent(path).replace(/^\/+/, '');
-  // Preserve extra query params beyond projectId/path for upstream
+
+  // Query params beyond projectId/path belong to the upstream site
   const passthrough = new URLSearchParams(u.searchParams);
   passthrough.delete('projectId');
   passthrough.delete('path');
   const extra = passthrough.toString();
-  return {
-    projectId,
-    path,
-    search: extra ? `?${extra}` : '',
-  };
+  const search = extra ? `?${extra}` : '';
+
+  const m = u.pathname.match(/^\/p\/([^/]+)(?:\/(.*))?$/);
+  if (m) {
+    return { projectId: m[1], path: m[2] || '', search };
+  }
+
+  // Rewritten form: /api/proxy?projectId=&path=
+  const projectId = u.searchParams.get('projectId');
+  let path = u.searchParams.get('path') || '';
+  path = decodeURIComponent(path).replace(/^\/+/, '');
+  return { projectId, path, search };
 }
 
 function joinUrl(base, path, search) {
