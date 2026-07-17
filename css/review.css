@@ -134,6 +134,7 @@ body.review-sidebar-open {
   border: 1px solid var(--brand-line);
   background: transparent;
   color: var(--brand-text);
+  text-decoration: none;
   transition: background 0.15s, border-color 0.15s, transform 0.12s;
 }
 

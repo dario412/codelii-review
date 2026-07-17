@@ -1,12 +1,37 @@
 import { createServer } from 'http';
 import { readFile } from 'fs/promises';
-import { existsSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 import { join, extname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = join(__dirname, '..');
-const PORT = Number(process.env.PORT) || 3000;
+
+function loadEnvFile(filename) {
+  const path = join(ROOT, filename);
+  if (!existsSync(path)) return;
+  const text = readFileSync(path, 'utf8');
+  for (const line of text.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const eq = trimmed.indexOf('=');
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
+
+loadEnvFile('.env');
+loadEnvFile('.env.local');
+
+const PORT = Number(process.env.PORT) || 3010;
 
 const MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -17,14 +42,30 @@ const MIME = {
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
   '.ico': 'image/x-icon',
+  '.woff': 'font/woff',
+  '.woff2': 'font/woff2',
 };
 
 const API_ROUTES = {
   'POST /api/auth/login': () => import('../api/auth/login.js'),
   'DELETE /api/auth/login': () => import('../api/auth/login.js'),
   'OPTIONS /api/auth/login': () => import('../api/auth/login.js'),
+  'POST /api/auth/signup': () => import('../api/auth/signup.js'),
+  'OPTIONS /api/auth/signup': () => import('../api/auth/signup.js'),
+  'POST /api/auth/google': () => import('../api/auth/google.js'),
+  'OPTIONS /api/auth/google': () => import('../api/auth/google.js'),
+  'GET /api/auth/config': () => import('../api/auth/config.js'),
+  'OPTIONS /api/auth/config': () => import('../api/auth/config.js'),
   'GET /api/auth/me': () => import('../api/auth/me.js'),
   'OPTIONS /api/auth/me': () => import('../api/auth/me.js'),
+  'GET /api/projects': () => import('../api/projects.js'),
+  'POST /api/projects': () => import('../api/projects.js'),
+  'PATCH /api/projects': () => import('../api/projects.js'),
+  'DELETE /api/projects': () => import('../api/projects.js'),
+  'OPTIONS /api/projects': () => import('../api/projects.js'),
+  'GET /api/invites': () => import('../api/invites.js'),
+  'POST /api/invites': () => import('../api/invites.js'),
+  'OPTIONS /api/invites': () => import('../api/invites.js'),
   'GET /api/comments': () => import('../api/comments.js'),
   'POST /api/comments': () => import('../api/comments.js'),
   'PATCH /api/comments': () => import('../api/comments.js'),
@@ -43,10 +84,14 @@ const API_ROUTES = {
   'POST /api/screenshots': () => import('../api/screenshots.js'),
   'DELETE /api/screenshots': () => import('../api/screenshots.js'),
   'OPTIONS /api/screenshots': () => import('../api/screenshots.js'),
+  'GET /api/proxy': () => import('../api/proxy.js'),
+  'OPTIONS /api/proxy': () => import('../api/proxy.js'),
+  'GET /api/serve': () => import('../api/serve.js'),
+  'OPTIONS /api/serve': () => import('../api/serve.js'),
 };
 
-async function handleApi(req, res) {
-  const url = new URL(req.url, `http://localhost:${PORT}`);
+async function handleApi(req, res, requestUrl) {
+  const url = new URL(requestUrl || req.url, `http://localhost:${PORT}`);
   const key = `${req.method} ${url.pathname}`;
   const loader = API_ROUTES[key];
 
@@ -74,13 +119,20 @@ async function handleApi(req, res) {
     method: req.method,
     headers,
     body: ['GET', 'HEAD', 'OPTIONS'].includes(req.method) ? undefined : body,
+    redirect: 'manual',
   });
 
   const response = await handler(request);
+  const outHeaders = Object.fromEntries(response.headers.entries());
+  res.writeHead(response.status, outHeaders);
 
-  res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
-  const text = await response.text();
-  res.end(text);
+  if ([301, 302, 303, 307, 308].includes(response.status) && !response.body) {
+    res.end();
+    return;
+  }
+
+  const buf = Buffer.from(await response.arrayBuffer());
+  res.end(buf);
 }
 
 function readBody(req) {
@@ -96,6 +148,7 @@ async function serveStatic(req, res) {
   let pathname = decodeURIComponent(url.pathname);
 
   if (pathname === '/') pathname = '/index.html';
+  if (pathname === '/join') pathname = '/join.html';
 
   const filePath = join(ROOT, pathname);
 
@@ -111,8 +164,32 @@ async function serveStatic(req, res) {
   res.end(data);
 }
 
+function rewriteProjectPath(pathname, search) {
+  const pMatch = pathname.match(/^\/p\/([^/]+)(?:\/(.*))?$/);
+  if (pMatch) {
+    const projectId = encodeURIComponent(pMatch[1]);
+    const path = encodeURIComponent(pMatch[2] || '');
+    return `/api/proxy?projectId=${projectId}&path=${path}${search ? '&' + search.slice(1) : ''}`;
+  }
+  const sMatch = pathname.match(/^\/s\/([^/]+)(?:\/(.*))?$/);
+  if (sMatch) {
+    const projectId = encodeURIComponent(sMatch[1]);
+    const path = encodeURIComponent(sMatch[2] || '');
+    return `/api/serve?projectId=${projectId}&path=${path}${search ? '&' + search.slice(1) : ''}`;
+  }
+  return null;
+}
+
 const server = createServer(async (req, res) => {
   try {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+
+    const rewritten = rewriteProjectPath(url.pathname, url.search);
+    if (rewritten) {
+      await handleApi(req, res, rewritten);
+      return;
+    }
+
     if (req.url?.startsWith('/api/')) {
       await handleApi(req, res);
     } else {
@@ -126,6 +203,7 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  Local preview running at http://localhost:${PORT}`);
-  console.log(`  Sign in at http://localhost:${PORT}/login.html\n`);
+  console.log(`\n  Codelii Review running at http://localhost:${PORT}`);
+  console.log(`  Landing:  http://localhost:${PORT}/`);
+  console.log(`  Sign in:  http://localhost:${PORT}/login.html\n`);
 });

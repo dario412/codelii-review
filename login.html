@@ -7,170 +7,44 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --brand-bg: #002B2B;
-    --brand-accent: #B8FF54;
-    --brand-accent-hover: #A8EF44;
-    --brand-muted: rgba(255, 255, 255, 0.65);
-  }
-
-  body {
-    font-family: 'Plus Jakarta Sans', Inter, sans-serif;
-    min-height: 100vh;
-    background: var(--brand-bg);
-    color: #fff;
-  }
-
-  .login-page {
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 24px;
-    background:
-      radial-gradient(circle at 50% 0%, rgba(184, 255, 84, 0.12) 0%, transparent 45%),
-      var(--brand-bg);
-  }
-
-  .login-card {
-    width: 100%;
-    max-width: 440px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 20px;
-    padding: 44px 40px;
-    backdrop-filter: blur(8px);
-  }
-
-  .login-dot {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--brand-accent);
-    margin-bottom: 20px;
-    box-shadow: 0 0 20px rgba(184, 255, 84, 0.5);
-  }
-
-  .login-brand {
-    font-size: 22px;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    margin-bottom: 6px;
-  }
-
-  .login-brand span { color: var(--brand-accent); }
-
-  .login-card h1 {
-    font-size: 28px;
-    font-weight: 700;
-    letter-spacing: -0.03em;
-    margin-bottom: 10px;
-  }
-
-  .login-card > p {
-    color: var(--brand-muted);
-    font-size: 15px;
-    margin-bottom: 28px;
-    line-height: 1.55;
-  }
-
-  .login-field { margin-bottom: 16px; }
-
-  .login-field label {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: rgba(255, 255, 255, 0.85);
-  }
-
-  .login-field input {
-    width: 100%;
-    padding: 14px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 12px;
-    font-family: inherit;
-    font-size: 15px;
-    background: rgba(255, 255, 255, 0.06);
-    color: #fff;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-
-  .login-field input::placeholder { color: rgba(255, 255, 255, 0.35); }
-
-  .login-field input:focus {
-    outline: none;
-    border-color: var(--brand-accent);
-    box-shadow: 0 0 0 3px rgba(184, 255, 84, 0.2);
-  }
-
-  .login-error {
-    background: rgba(255, 80, 80, 0.12);
-    color: #ffb4b4;
-    padding: 12px 14px;
-    border-radius: 10px;
-    font-size: 13px;
-    margin-bottom: 16px;
-    display: none;
-    border: 1px solid rgba(255, 80, 80, 0.25);
-  }
-
-  .login-error.show { display: block; }
-
-  .login-submit {
-    width: 100%;
-    margin-top: 8px;
-    padding: 14px 20px;
-    border: none;
-    border-radius: 999px;
-    background: var(--brand-accent);
-    color: var(--brand-bg);
-    font-family: inherit;
-    font-size: 15px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.15s, transform 0.12s;
-  }
-
-  .login-submit:hover { background: var(--brand-accent-hover); }
-  .login-submit:disabled { opacity: 0.6; cursor: not-allowed; }
-
-  .login-note {
-    margin-top: 22px;
-    font-size: 12px;
-    color: var(--brand-muted);
-    text-align: center;
-    line-height: 1.55;
-  }
-</style>
+<link rel="stylesheet" href="/css/app.css">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 
-<div class="login-page">
-  <div class="login-card">
-    <div class="login-dot"></div>
-    <div class="login-brand">Codelii<span> Review</span></div>
-    <h1>Sign in to review</h1>
-    <p>Enter your name and email to access the site and leave feedback for the team.</p>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-dot"></div>
+    <div class="brand">Codelii<span> Review</span></div>
+    <h1 id="auth-title">Sign in</h1>
+    <p class="sub" id="auth-sub">Access your projects and leave visual feedback with your team.</p>
 
-    <div class="login-error" id="login-error"></div>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" id="tab-signin" data-mode="signin">Sign in</button>
+      <button type="button" class="auth-tab" id="tab-signup" data-mode="signup">Sign up</button>
+    </div>
 
-    <form id="login-form">
-      <div class="login-field">
+    <div class="error-box" id="auth-error"></div>
+
+    <form id="auth-form">
+      <div class="field" id="name-field" hidden>
         <label for="name">Your name</label>
-        <input type="text" id="name" name="name" placeholder="Jane Smith" required autocomplete="name">
+        <input type="text" id="name" name="name" placeholder="Jane Smith" autocomplete="name">
       </div>
-      <div class="login-field">
-        <label for="email">Email address</label>
+      <div class="field">
+        <label for="email">Email</label>
         <input type="email" id="email" name="email" placeholder="jane@company.com" required autocomplete="email">
       </div>
-      <button type="submit" class="login-submit" id="login-btn">Continue to site</button>
+      <div class="field">
+        <label for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="••••••••" required minlength="8" autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-accent" style="width:100%;margin-top:6px" id="auth-btn">Sign in</button>
     </form>
 
-    <p class="login-note">Your email identifies comments and sends notifications when you're @tagged.</p>
+    <div class="divider">or</div>
+    <div class="google-wrap" id="google-btn"></div>
+    <p class="auth-note" id="google-note">Google sign-in appears when GOOGLE_CLIENT_ID is configured.</p>
   </div>
 </div>
 
@@ -179,47 +53,127 @@
   const TOKEN_KEY = 'review_token';
   const USER_KEY = 'review_user';
   const params = new URLSearchParams(window.location.search);
-  const redirect = params.get('redirect') || '/index.html';
+  const redirect = params.get('redirect') || '/dashboard.html';
+  let mode = params.get('mode') === 'signup' ? 'signup' : 'signin';
 
   if (localStorage.getItem(TOKEN_KEY)) {
     window.location.replace(decodeURIComponent(redirect));
     return;
   }
 
-  const form = document.getElementById('login-form');
-  const errorEl = document.getElementById('login-error');
-  const btn = document.getElementById('login-btn');
+  const form = document.getElementById('auth-form');
+  const errorEl = document.getElementById('auth-error');
+  const btn = document.getElementById('auth-btn');
+  const nameField = document.getElementById('name-field');
+  const nameInput = document.getElementById('name');
+  const passwordInput = document.getElementById('password');
+
+  function setMode(next) {
+    mode = next;
+    document.getElementById('tab-signin').classList.toggle('active', mode === 'signin');
+    document.getElementById('tab-signup').classList.toggle('active', mode === 'signup');
+    document.getElementById('auth-title').textContent = mode === 'signup' ? 'Create account' : 'Sign in';
+    document.getElementById('auth-sub').textContent =
+      mode === 'signup'
+        ? 'Create an account to start reviewing sites and inviting collaborators.'
+        : 'Access your projects and leave visual feedback with your team.';
+    nameField.hidden = mode !== 'signup';
+    nameInput.required = mode === 'signup';
+    passwordInput.autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
+    btn.textContent = mode === 'signup' ? 'Create account' : 'Sign in';
+  }
+
+  document.querySelectorAll('.auth-tab').forEach((tab) => {
+    tab.addEventListener('click', () => setMode(tab.dataset.mode));
+  });
+  setMode(mode);
+
+  function saveAndGo(data) {
+    localStorage.setItem(TOKEN_KEY, data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+    window.location.replace(decodeURIComponent(redirect));
+  }
+
+  function showError(msg) {
+    errorEl.textContent = msg;
+    errorEl.classList.add('show');
+  }
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.classList.remove('show');
     btn.disabled = true;
-    btn.textContent = 'Signing in…';
+    btn.textContent = mode === 'signup' ? 'Creating…' : 'Signing in…';
 
-    const name = document.getElementById('name').value.trim();
-    const email = document.getElementById('email').value.trim();
+    const payload = {
+      email: document.getElementById('email').value.trim(),
+      password: passwordInput.value,
+    };
+    if (mode === 'signup') payload.name = nameInput.value.trim();
 
     try {
-      const res = await fetch('/api/auth/login', {
+      const res = await fetch(mode === 'signup' ? '/api/auth/signup' : '/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Sign in failed');
-
-      localStorage.setItem(TOKEN_KEY, data.token);
-      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-      window.location.replace(decodeURIComponent(redirect));
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      saveAndGo(data);
     } catch (err) {
-      errorEl.textContent = err.message;
-      errorEl.classList.add('show');
+      showError(err.message);
       btn.disabled = false;
-      btn.textContent = 'Continue to site';
+      btn.textContent = mode === 'signup' ? 'Create account' : 'Sign in';
     }
   });
+
+  window.__onGoogleCredential = async (response) => {
+    errorEl.classList.remove('show');
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Google sign-in failed');
+      saveAndGo(data);
+    } catch (err) {
+      showError(err.message);
+    }
+  };
+
+  async function initGoogle() {
+    try {
+      const res = await fetch('/api/auth/config');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.googleClientId) return;
+
+      document.getElementById('google-note').hidden = true;
+      const start = () => {
+        if (!window.google?.accounts?.id) {
+          setTimeout(start, 100);
+          return;
+        }
+        google.accounts.id.initialize({
+          client_id: data.googleClientId,
+          callback: window.__onGoogleCredential,
+        });
+        google.accounts.id.renderButton(document.getElementById('google-btn'), {
+          theme: 'outline',
+          size: 'large',
+          width: 360,
+          text: 'continue_with',
+        });
+      };
+      start();
+    } catch {
+      /* ignore */
+    }
+  }
+  initGoogle();
 })();
 </script>
-
 </body>
 </html>

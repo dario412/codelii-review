@@ -4,18 +4,15 @@
   const USER_KEY = 'review_user';
 
   const path = window.location.pathname;
-  const isLogin = path.endsWith('login.html') || path.endsWith('/login');
-
-  if (isLogin) return;
+  const isPublic =
+    path === '/' ||
+    path.endsWith('/index.html') ||
+    path.endsWith('login.html') ||
+    path.endsWith('/login') ||
+    path.endsWith('join.html');
 
   const token = localStorage.getItem(TOKEN_KEY);
   const user = localStorage.getItem(USER_KEY);
-
-  if (!token || !user) {
-    const redirect = encodeURIComponent(path + window.location.search + window.location.hash);
-    window.location.replace(`${LOGIN_PATH}?redirect=${redirect}`);
-    return;
-  }
 
   window.ReviewAuth = {
     getToken() {
@@ -54,5 +51,15 @@
         Authorization: `Bearer ${window.ReviewAuth.getToken()}`,
       };
     },
+    isLoggedIn() {
+      return Boolean(localStorage.getItem(TOKEN_KEY) && localStorage.getItem(USER_KEY));
+    },
   };
+
+  if (isPublic) return;
+
+  if (!token || !user) {
+    const redirect = encodeURIComponent(path + window.location.search + window.location.hash);
+    window.location.replace(`${LOGIN_PATH}?redirect=${redirect}`);
+  }
 })();

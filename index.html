@@ -3,464 +3,58 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Credible — The Talent Agency for the Expert Economy</title>
+<title>Codelii Review — Visual feedback for any site</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,340;9..144,380;9..144,420;9..144,460&family=Inter:wght@400;460;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
 </head>
-<body>
+<body class="landing">
 
-<header class="masthead">
-  <div class="masthead-inner">
-    <a href="index.html" class="wordmark">Credible<span class="dot">.</span></a>
-    <nav class="nav">
-      <a href="roster.html">Roster</a>
-      <a href="what-we-do.html">What we do</a>
-      <a href="case-studies.html">Case studies</a>
-      <a href="insights.html">Insights</a>
-      <a href="about.html">About</a>
-    </nav>
-    <div class="nav-cta">
-      <a href="contact.html" class="btn btn-primary btn-sm">Send brief</a>
-    </div>
-  </div>
+<header class="site-nav">
+  <a class="brand" href="/">Codelii<span> Review</span></a>
+  <nav>
+    <a href="/login.html">Sign in</a>
+    <a class="btn btn-accent" href="/login.html?mode=signup">Get started</a>
+  </nav>
 </header>
 
-<!-- =========================================================
-     Hero — Talent agency for the expert economy
-     ========================================================= -->
-<section class="section-lg">
-  <div class="wrap">
-    <div class="page-marker">
-      <span>№ 001 / The Agency</span>
-      <span>Est. 2026 · London</span>
-    </div>
+<main class="hero">
+  <div class="hero-glow"></div>
+  <p class="eyebrow">Visual site review for teams</p>
+  <h1>Codelii<span> Review</span></h1>
+  <p class="lede">Paste a live URL or GitHub repo. Invite your team. Pin comments exactly where they belong.</p>
+  <div class="hero-cta">
+    <a class="btn btn-accent btn-lg" href="/login.html?mode=signup">Start reviewing</a>
+    <a class="btn btn-ghost btn-lg" href="/login.html">Sign in</a>
+  </div>
+</main>
 
-    <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: var(--s-7); align-items: end;">
-      <div>
-        <p class="eyebrow eyebrow-gold mb-4">The talent agency for the expert economy</p>
-        <h1 class="display-xl">
-          Book B2B creators<br>
-          for your <span class="italic">brand.</span>
-        </h1>
-      </div>
-      <div>
-        <p class="lede mb-5">
-          Credible represents the founders, operators, investors and specialists whose
-          voices your buyers already trust — and turns that trust into content,
-          campaigns and stage time for your brand. From LinkedIn feeds to podcast
-          studios to keynote stages.
-        </p>
-        <div class="flex-gap">
-          <a href="contact.html" class="btn btn-primary arrow">Send brief</a>
-          <a href="roster.html" class="btn btn-secondary">Browse roster</a>
-        </div>
-      </div>
-    </div>
+<section class="features">
+  <div class="feature">
+    <h2>Live URLs</h2>
+    <p>Browse the real site through our proxy — fully clickable, with comments pinned in place.</p>
+  </div>
+  <div class="feature">
+    <h2>GitHub snapshots</h2>
+    <p>Import a public static repo and review every page without deploying.</p>
+  </div>
+  <div class="feature">
+    <h2>Invite anyone</h2>
+    <p>Email invites or a shareable link. Collaborators sign in and leave feedback immediately.</p>
   </div>
 </section>
 
-<!-- =========================================================
-     Logo strip — social proof
-     ========================================================= -->
-<section class="section-sm section-warm">
-  <div class="wrap">
-    <p class="eyebrow center mb-6" style="letter-spacing: 0.14em;">Trusted by teams at</p>
-    <div style="display: flex; align-items: center; justify-content: center; flex-wrap: wrap;">
-      <div class="logo-item">Notion</div>
-      <div class="logo-item">Ramp</div>
-      <div class="logo-item">HubSpot</div>
-      <div class="logo-item">Anthropic</div>
-      <div class="logo-item">Stripe</div>
-      <div class="logo-item">Vanta</div>
-      <div class="logo-item">Perplexity</div>
-      <div class="logo-item">SaaStr</div>
-    </div>
-  </div>
-</section>
-
-<!-- =========================================================
-     Sample talent — the roster preview
-     ========================================================= -->
-<section class="section">
-  <div class="wrap">
-    <div class="flex-between mb-7" style="flex-wrap: wrap; gap: var(--s-4);">
-      <div>
-        <p class="eyebrow eyebrow-gold mb-3">The roster</p>
-        <h2 class="display-l">Signed talent<br>you can brief.</h2>
-      </div>
-      <a href="roster.html" class="btn btn-ghost arrow">See all 24</a>
-    </div>
-
-    <div class="grid grid-4">
-      <a href="roster-alex-lieberman.html" class="creator-card">
-        <div class="creator-card-photo">
-          <div class="avatar a-coral">AL</div>
-          <div class="badge">Founder</div>
-        </div>
-        <h3 class="creator-card-name">Alex Lieberman</h3>
-        <p class="creator-card-bio">Co-founder, Morning Brew. Media entrepreneur turned creator-operator.</p>
-        <div class="creator-card-tags">
-          <span class="tag">Media</span>
-        </div>
-      </a>
-      <a href="roster-sarah-chen.html" class="creator-card">
-        <div class="creator-card-photo">
-          <div class="avatar a-teal">SC</div>
-          <div class="badge">Investor</div>
-        </div>
-        <h3 class="creator-card-name">Sarah Chen</h3>
-        <p class="creator-card-bio">Founding partner at Beyond Deep. Fintech and AI investor with 340k on LinkedIn.</p>
-        <div class="creator-card-tags">
-          <span class="tag">Fintech</span>
-        </div>
-      </a>
-      <a href="roster.html" class="creator-card">
-        <div class="creator-card-photo">
-          <div class="avatar a-gold">DM</div>
-          <div class="badge">Operator</div>
-        </div>
-        <h3 class="creator-card-name">Devon Marsh</h3>
-        <p class="creator-card-bio">CMO turned category strategist. Writes the definitive B2B brand newsletter.</p>
-        <div class="creator-card-tags">
-          <span class="tag">Marketing</span>
-        </div>
-      </a>
-      <a href="roster.html" class="creator-card">
-        <div class="creator-card-photo">
-          <div class="avatar a-lilac">PN</div>
-          <div class="badge">Specialist</div>
-        </div>
-        <h3 class="creator-card-name">Priya Natarajan</h3>
-        <p class="creator-card-bio">Head of Applied AI at a Series C. Voice of practical enterprise AI.</p>
-        <div class="creator-card-tags">
-          <span class="tag">AI</span>
-        </div>
-      </a>
-    </div>
-  </div>
-</section>
-
-<!-- =========================================================
-     Screen to stage — four pillars
-     ========================================================= -->
-<section class="section section-warm">
-  <div class="wrap">
-    <div class="flex-between mb-7" style="flex-wrap: wrap; gap: var(--s-4);">
-      <div style="max-width: 640px;">
-        <p class="eyebrow eyebrow-gold mb-3">Screen to stage</p>
-        <h2 class="display-l">One roster,<br>four ways in.</h2>
-        <p class="lede mt-4">
-          Whatever the brief maps to — a keynote, a series, a category ambassador,
-          a private dinner — the same team handles it end-to-end.
-        </p>
-      </div>
-      <a href="what-we-do.html" class="btn btn-ghost arrow">See the full model</a>
-    </div>
-
-    <div class="grid grid-4">
-      <a href="content-partnerships.html" class="pillar">
-        <div class="pillar-num">01 / Content</div>
-        <h3>Content<br>partnerships</h3>
-        <p>Newsletter sponsorships, podcast integrations, ongoing series with brands who want to embed with an audience of one.</p>
-        <span class="link">Learn more</span>
-      </a>
-      <a href="brand-partnerships.html" class="pillar">
-        <div class="pillar-num">02 / Brand</div>
-        <h3>Brand<br>partnerships</h3>
-        <p>Ambassadorships and campaign work. Long-form, considered — not a one-post drop.</p>
-        <span class="link">Learn more</span>
-      </a>
-      <a href="speaking.html" class="pillar">
-        <div class="pillar-num">03 / Speaking</div>
-        <h3>Speaking<br>engagements</h3>
-        <p>Keynotes, panels, fireside chats and closed-door executive sessions. Bureau-quality booking.</p>
-        <span class="link">Learn more</span>
-      </a>
-      <a href="live-events.html" class="pillar">
-        <div class="pillar-num">04 / Live</div>
-        <h3>Live<br>events</h3>
-        <p>Curated dinners, salons and owned events built around a creator's audience and network.</p>
-        <span class="link">Learn more</span>
-      </a>
-    </div>
-  </div>
-</section>
-
-<!-- =========================================================
-     Numbers strip — roster & reach focused
-     ========================================================= -->
-<section class="section-sm">
-  <div class="wrap">
-    <div class="grid grid-4">
-      <div>
-        <div class="data-label">Signed creators</div>
-        <div class="data-value">24</div>
-        <div class="data-caption">Across four archetypes</div>
-      </div>
-      <div>
-        <div class="data-label">Combined reach</div>
-        <div class="data-value">18.4M</div>
-        <div class="data-caption">LinkedIn, YouTube, podcasts</div>
-      </div>
-      <div>
-        <div class="data-label">Brand partners</div>
-        <div class="data-value">60+</div>
-        <div class="data-caption">HubSpot, Notion, Ramp, Vanta</div>
-      </div>
-      <div>
-        <div class="data-label">Stages booked</div>
-        <div class="data-value">142</div>
-        <div class="data-caption">Keynotes and podcast sessions</div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- =========================================================
-     Case study spotlight
-     ========================================================= -->
-<section class="section-lg section-ink">
-  <div class="wrap">
-    <div style="display: grid; grid-template-columns: 1fr 1.1fr; gap: var(--s-7); align-items: center;">
-      <div>
-        <p class="eyebrow mb-4">Client case study № 001 · Notion</p>
-        <h2 class="display-l" style="color: var(--paper);">
-          How Notion built the definitive B2B founder series —
-          <span class="italic" style="color: var(--gold-soft);">without building a studio.</span>
-        </h2>
-        <p class="lede mt-5" style="color: rgba(255,255,255,0.78);">
-          Notion's brief: a founder-facing content property with staying power,
-          fronted by a voice the audience already trusted. Our answer: a
-          12-episode series with Alex Lieberman as editorial lead. Twenty-two
-          months later, it's the highest-performing brand series in the category.
-        </p>
-        <a href="case-study-alex-morningbrew.html" class="btn btn-inverse arrow mt-5">Read the case study</a>
-      </div>
-      <div>
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3);">
-          <div class="data-card" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); color: var(--paper);">
-            <div class="data-label" style="color: var(--gold-soft);">Episodes shipped</div>
-            <div class="data-value" style="color: var(--paper);">12</div>
-            <div class="data-caption" style="color: rgba(255,255,255,0.6);">Video + audio + written</div>
-          </div>
-          <div class="data-card" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12);">
-            <div class="data-label" style="color: var(--gold-soft);">Total downloads</div>
-            <div class="data-value" style="color: var(--paper);">4.1M</div>
-            <div class="data-caption" style="color: rgba(255,255,255,0.6);">Across all channels</div>
-          </div>
-          <div class="data-card" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12);">
-            <div class="data-label" style="color: var(--gold-soft);">Pipeline attributed</div>
-            <div class="data-value" style="color: var(--paper);">$18.4M</div>
-            <div class="data-caption" style="color: rgba(255,255,255,0.6);">Notion, first-touch attribution</div>
-          </div>
-          <div class="data-card" style="background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12);">
-            <div class="data-label" style="color: var(--gold-soft);">Partnership term</div>
-            <div class="data-value" style="color: var(--paper);">22mo</div>
-            <div class="data-caption" style="color: rgba(255,255,255,0.6);">Currently renewed through 2027</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- =========================================================
-     Send-brief section for brands
-     ========================================================= -->
-<section class="section">
-  <div class="wrap">
-    <div style="padding: var(--s-7); background: var(--paper-warm); border-radius: 12px; border: 1px solid var(--line);">
-      <div class="grid grid-2 gap-xl" style="align-items: start;">
-        <div>
-          <p class="eyebrow eyebrow-gold mb-4">For brands</p>
-          <h3 class="display-l" style="font-size: clamp(32px, 3.6vw, 48px);">
-            Reach B2B audiences through the people they
-            <span class="italic">already trust.</span>
-          </h3>
-          <p class="body-l mt-4" style="max-width: 52ch;">
-            Whether you're an in-house team briefing direct, or an agency briefing us
-            in on behalf of a client — send us the ambition and we'll come back with
-            a shortlist within 48 hours.
-          </p>
-          <a href="what-we-do.html" class="btn btn-secondary arrow mt-5">How we work with brands</a>
-        </div>
-
-        <div>
-          <form onsubmit="event.preventDefault(); document.getElementById('home-brief-success').style.display='block'; this.reset();">
-            <div id="home-brief-success" style="display:none; padding: var(--s-4); background: var(--paper); border: 1px solid var(--gold); border-radius: 8px; margin-bottom: var(--s-4);">
-              <p class="eyebrow eyebrow-gold mb-2">Brief received</p>
-              <p style="font-size: 14px;">Thanks — we'll be back within 48 hours with a shortlist or a call to clarify.</p>
-            </div>
-
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-3);">
-              <div class="form-field">
-                <label>Your name</label>
-                <input type="text" required placeholder="First and last">
-              </div>
-              <div class="form-field">
-                <label>Work email</label>
-                <input type="email" required placeholder="you@company.com">
-              </div>
-            </div>
-            <div class="form-field">
-              <label>Company</label>
-              <input type="text" required placeholder="Where you're briefing from">
-            </div>
-            <div class="form-field">
-              <label>What are you building?</label>
-              <select required>
-                <option value="">Choose a format</option>
-                <option>Content partnership (podcast, newsletter, series)</option>
-                <option>Brand partnership / ambassadorship</option>
-                <option>Speaking engagement (keynote, fireside, panel)</option>
-                <option>Live event (dinner, salon, summit)</option>
-                <option>Multi-pillar programme</option>
-                <option>Not sure yet — need advice</option>
-              </select>
-            </div>
-            <div class="form-field">
-              <label>The brief (short version)</label>
-              <textarea required placeholder="Audience, ambition, deadline, budget shape."></textarea>
-            </div>
-
-            <button type="submit" class="btn btn-primary btn-lg" style="width: 100%;">Send brief</button>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <!-- Smaller creator strip -->
-    <div class="mt-5" style="padding: var(--s-4) var(--s-5); border: 1px solid var(--line); border-radius: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--s-3);">
-      <div style="max-width: 640px;">
-        <p class="eyebrow eyebrow-blue mb-2">For creators</p>
-        <p class="body-l" style="font-size: 16px; color: var(--ink);">
-          Founder, operator, investor or specialist ready to treat your audience as a business?
-          Applications reviewed fortnightly.
-        </p>
-      </div>
-      <div class="flex-gap">
-        <a href="for-creators.html" class="btn btn-ghost btn-sm">What we offer creators</a>
-        <a href="representation-request.html" class="btn btn-secondary btn-sm arrow">Apply</a>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- =========================================================
-     Insights teaser
-     ========================================================= -->
-<section class="section section-warm">
-  <div class="wrap">
-    <div class="flex-between mb-7" style="flex-wrap: wrap; gap: var(--s-4);">
-      <div>
-        <p class="eyebrow eyebrow-gold mb-3">Insights</p>
-        <h2 class="display-l">Field notes.</h2>
-      </div>
-      <a href="insights.html" class="btn btn-ghost arrow">All writing</a>
-    </div>
-
-    <div class="grid grid-3">
-      <a href="insight-detail.html" class="creator-card">
-        <div class="case-card-image">
-          <div class="avatar a-sage" style="border-radius: 8px;">01</div>
-        </div>
-        <div class="case-card-meta">
-          <span class="meta">Strategy</span>
-          <span class="meta">·</span>
-          <span class="meta">8 min read</span>
-        </div>
-        <h3 class="creator-card-name">Why the "creator" label doesn't fit B2B — and what does</h3>
-        <p class="creator-card-bio">The Expert Creator vs. influencer taxonomy, and why the difference matters for buyers.</p>
-      </a>
-      <a href="insight-detail.html" class="creator-card">
-        <div class="case-card-image">
-          <div class="avatar a-blue" style="border-radius: 8px;">02</div>
-        </div>
-        <div class="case-card-meta">
-          <span class="meta">Buyer research</span>
-          <span class="meta">·</span>
-          <span class="meta">12 min read</span>
-        </div>
-        <h3 class="creator-card-name">The rise of the Creator Marketing Manager</h3>
-        <p class="creator-card-bio">HubSpot, Notion, Ramp and the new in-house role changing how B2B works with talent.</p>
-      </a>
-      <a href="insight-detail.html" class="creator-card">
-        <div class="case-card-image">
-          <div class="avatar a-cream" style="border-radius: 8px;">03</div>
-        </div>
-        <div class="case-card-meta">
-          <span class="meta">Playbook</span>
-          <span class="meta">·</span>
-          <span class="meta">6 min read</span>
-        </div>
-        <h3 class="creator-card-name">How to brief a B2B creator (properly)</h3>
-        <p class="creator-card-bio">A working template for creator marketing managers writing their first ambassador brief.</p>
-      </a>
-    </div>
-  </div>
-</section>
-
-<footer>
-  <div class="footer-inner">
-    <div class="footer-top">
-      <div class="footer-brand">
-        <a href="index.html" class="wordmark">Credible<span class="dot">.</span></a>
-        <p>The talent agency for the expert economy. A PepTalk company.</p>
-      </div>
-      <div class="footer-col">
-        <h4>Roster</h4>
-        <ul>
-          <li><a href="roster.html">All creators</a></li>
-          <li><a href="roster.html">Founders</a></li>
-          <li><a href="roster.html">Investors</a></li>
-          <li><a href="roster.html">Specialists</a></li>
-        </ul>
-      </div>
-      <div class="footer-col">
-        <h4>What we do</h4>
-        <ul>
-          <li><a href="content-partnerships.html">Content</a></li>
-          <li><a href="brand-partnerships.html">Brand</a></li>
-          <li><a href="speaking.html">Speaking</a></li>
-          <li><a href="live-events.html">Live events</a></li>
-        </ul>
-      </div>
-      <div class="footer-col">
-        <h4>Company</h4>
-        <ul>
-          <li><a href="about.html">About</a></li>
-          <li><a href="case-studies.html">Case studies</a></li>
-          <li><a href="insights.html">Insights</a></li>
-          <li><a href="contact.html">Contact</a></li>
-        </ul>
-      </div>
-      <div class="footer-col">
-        <h4>Work with us</h4>
-        <ul>
-          <li><a href="what-we-do.html#agencies">For agencies</a></li>
-          <li><a href="for-creators.html">For creators</a></li>
-          <li><a href="representation-request.html">Apply for representation</a></li>
-        </ul>
-      </div>
-    </div>
-    <div class="footer-bottom">
-      <div>© 2026 Credible Talent Ltd — A PepTalk company</div>
-      <div style="display: flex; gap: 20px;">
-        <a href="#">Privacy</a>
-        <a href="#">Terms</a>
-        <a href="#">LinkedIn ↗</a>
-      </div>
-    </div>
-  </div>
+<footer class="site-footer">
+  <span>Codelii Review</span>
 </footer>
 
-
-<!-- Credible Review Mode -->
-<link rel="stylesheet" href="/css/review.css">
-<script src="/js/auth-guard.js"></script>
-<script src="/js/review.js" defer></script>
-
+<script>
+(function () {
+  if (localStorage.getItem('review_token')) {
+    window.location.replace('/dashboard.html');
+  }
+})();
+</script>
 </body>
 </html>

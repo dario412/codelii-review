@@ -1,6 +1,12 @@
 (function () {
   if (!window.ReviewAuth) return;
 
+  const project = window.__REVIEW_PROJECT__;
+  if (!project || !project.id) {
+    console.error('[review] Missing project context');
+    return;
+  }
+
   const state = {
     commentMode: false,
     sidebarOpen: true,
@@ -21,17 +27,41 @@
   };
 
   const page = currentPage();
+  const projectId = project.id;
+  const viewPrefix = (project.viewPrefix || '').replace(/\/$/, '');
 
   init();
 
   function currentPage() {
-    const p = window.location.pathname.split('/').pop();
-    return !p ? 'index.html' : p;
+    const path = window.location.pathname;
+    const prefix = (window.__REVIEW_PROJECT__?.viewPrefix || '').replace(/\/$/, '');
+    let rel = path;
+    if (prefix && path.startsWith(prefix)) {
+      rel = path.slice(prefix.length) || '/';
+    }
+    rel = rel.replace(/^\//, '');
+    if (!rel || rel.endsWith('/')) rel = `${rel}index.html`.replace(/^\//, '');
+    return rel || 'index.html';
   }
 
   function samePage(a, b) {
-    const norm = (p) => (!p || p === '/' ? 'index.html' : p.replace(/^\//, ''));
+    const norm = (p) => {
+      let x = !p || p === '/' ? 'index.html' : String(p).replace(/^\//, '');
+      if (x.endsWith('/')) x += 'index.html';
+      return x;
+    };
     return norm(a) === norm(b);
+  }
+
+  function pageHref(pagePath, query) {
+    const clean = String(pagePath || '').replace(/^\//, '');
+    const q = query ? (query.startsWith('?') ? query : `?${query}`) : '';
+    return `${viewPrefix}/${clean}${q}`;
+  }
+
+  function withProject(url) {
+    const sep = url.includes('?') ? '&' : '?';
+    return `${url}${sep}projectId=${encodeURIComponent(projectId)}`;
   }
 
   async function init() {
@@ -201,7 +231,15 @@
           id: 'review-toggle-sidebar',
           onclick: toggleSidebar,
         }, ['☰ Comments']),
-        el('span', { class: 'review-logo' }, ['Codelii', el('span', {}, [' Review'])]),
+        el('a', {
+          class: 'review-btn',
+          href: '/dashboard.html',
+          title: 'Back to dashboard',
+        }, ['← Dashboard']),
+        el('span', { class: 'review-logo' }, [
+          project.name || 'Project',
+          el('span', {}, [' · Review']),
+        ]),
         el('div', { class: 'review-online-wrap', id: 'review-online-wrap' }),
       ]),
       el('div', { class: 'review-toolbar-right' }, [
@@ -292,6 +330,7 @@
       await fetch('/api/presence', {
         method: 'POST',
         headers: ReviewAuth.headers(),
+        body: JSON.stringify({ projectId }),
       });
     } catch {
       /* ignore */
@@ -300,7 +339,7 @@
 
   async function loadPresence() {
     try {
-      const res = await fetch('/api/presence', { headers: ReviewAuth.headers() });
+      const res = await fetch(withProject('/api/presence'), { headers: ReviewAuth.headers() });
       if (!res.ok) return;
       const data = await res.json();
       state.onlineUsers = data.online || [];
@@ -311,7 +350,7 @@
 
   async function loadNotifications() {
     try {
-      const res = await fetch('/api/notifications', { headers: ReviewAuth.headers() });
+      const res = await fetch(withProject('/api/notifications'), { headers: ReviewAuth.headers() });
       if (!res.ok) return;
       const data = await res.json();
       state.notifications = data.notifications || [];
@@ -401,7 +440,7 @@
     await fetch('/api/notifications', {
       method: 'PATCH',
       headers: ReviewAuth.headers(),
-      body: JSON.stringify({ markAllRead: true }),
+      body: JSON.stringify({ markAllRead: true, projectId }),
     });
     await loadNotifications();
     renderNotificationBadge();
@@ -412,7 +451,7 @@
     await fetch('/api/notifications', {
       method: 'PATCH',
       headers: ReviewAuth.headers(),
-      body: JSON.stringify({ id: n.id }),
+      body: JSON.stringify({ id: n.id, projectId }),
     });
     closeNotifications();
     await loadNotifications();
@@ -426,17 +465,17 @@
           setSidebarTab('resolved');
           openViewBubble(comment, false, true);
         } else {
-          window.location.href = `${comment.page}?comment=${comment.id}&resolved=1`;
+          window.location.href = pageHref(comment.page, `comment=${comment.id}&resolved=1`);
         }
         return;
       }
       if (samePage(comment.page, page)) {
         scrollToComment(comment);
       } else {
-        window.location.href = `${comment.page}?comment=${comment.id}`;
+        window.location.href = pageHref(comment.page, `comment=${comment.id}`);
       }
     } else {
-      window.location.href = `${n.page}?comment=${n.commentId}`;
+      window.location.href = pageHref(n.page, `comment=${n.commentId}`);
     }
   }
 
@@ -537,7 +576,7 @@
     await fetch('/api/screenshots', {
       method: 'POST',
       headers: ReviewAuth.headers(),
-      body: JSON.stringify({ commentId, image: base64 }),
+      body: JSON.stringify({ commentId, projectId, image: base64 }),
     });
   }
 
@@ -545,9 +584,10 @@
     if (state.screenshotUrls.has(commentId)) return state.screenshotUrls.get(commentId);
 
     try {
-      const res = await fetch(`/api/screenshots?commentId=${encodeURIComponent(commentId)}`, {
-        headers: ReviewAuth.headers(),
-      });
+      const res = await fetch(
+        `/api/screenshots?commentId=${encodeURIComponent(commentId)}&projectId=${encodeURIComponent(projectId)}`,
+        { headers: ReviewAuth.headers() }
+      );
       if (!res.ok) return null;
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -816,6 +856,7 @@
         method: 'POST',
         headers: ReviewAuth.headers(),
         body: JSON.stringify({
+          projectId,
           page,
           text,
           x: state.pendingPin.x,
@@ -996,7 +1037,7 @@
 
   async function loadComments() {
     try {
-      const res = await fetch('/api/comments');
+      const res = await fetch(withProject('/api/comments'), { headers: ReviewAuth.headers() });
       if (!res.ok) return;
       const data = await res.json();
       state.comments = data.comments || [];
@@ -1007,7 +1048,7 @@
 
   async function loadUsers() {
     try {
-      const res = await fetch('/api/users');
+      const res = await fetch(withProject('/api/users'), { headers: ReviewAuth.headers() });
       if (!res.ok) return;
       const data = await res.json();
       state.users = data.users || [];
@@ -1188,7 +1229,7 @@
       const res = await fetch('/api/comments', {
         method: 'POST',
         headers: ReviewAuth.headers(),
-        body: JSON.stringify({ parentId, text, tags }),
+        body: JSON.stringify({ projectId, parentId, text, tags }),
       });
 
       if (!res.ok) {
@@ -1218,7 +1259,7 @@
     await fetch('/api/comments', {
       method: 'PATCH',
       headers: ReviewAuth.headers(),
-      body: JSON.stringify({ id: comment.id, resolved: !comment.resolved }),
+      body: JSON.stringify({ id: comment.id, projectId, resolved: !comment.resolved }),
     });
     closeBubble();
     await loadComments();
@@ -1235,10 +1276,13 @@
 
   async function deleteComment(id) {
     if (!confirm('Delete this comment?')) return;
-    await fetch(`/api/comments?id=${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-      headers: ReviewAuth.headers(),
-    });
+    await fetch(
+      `/api/comments?id=${encodeURIComponent(id)}&projectId=${encodeURIComponent(projectId)}`,
+      {
+        method: 'DELETE',
+        headers: ReviewAuth.headers(),
+      }
+    );
     closeBubble();
     await loadComments();
     renderPins();
@@ -1294,18 +1338,17 @@
   function navigateToComment(comment) {
     if (comment.resolved) {
       if (!samePage(comment.page, page)) {
-        window.location.href = `${comment.page}?comment=${comment.id}&resolved=1`;
+        window.location.href = pageHref(comment.page, `comment=${comment.id}&resolved=1`);
         return;
       }
       openViewBubble(comment, false, true);
       return;
     }
 
-    const target = comment.page + `?comment=${comment.id}`;
     if (samePage(comment.page, page)) {
       scrollToComment(comment);
     } else {
-      window.location.href = target;
+      window.location.href = pageHref(comment.page, `comment=${comment.id}`);
     }
   }
 

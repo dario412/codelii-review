@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join project — Codelii Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/auth-guard.js"></script>
+</head>
+<body>
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-dot"></div>
+    <div class="brand">Codelii<span> Review</span></div>
+    <h1>Join project</h1>
+    <p class="sub" id="join-sub">Checking invite…</p>
+    <div class="error-box" id="join-error"></div>
+    <button class="btn btn-accent" style="width:100%" id="join-btn" hidden>Accept invite</button>
+    <p class="auth-note"><a href="/dashboard.html" style="color:var(--brand-accent)">Back to dashboard</a></p>
+  </div>
+</div>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const token = params.get('token');
+  const sub = document.getElementById('join-sub');
+  const err = document.getElementById('join-error');
+  const btn = document.getElementById('join-btn');
+
+  if (!token) {
+    sub.textContent = 'This invite link is missing a token.';
+    return;
+  }
+
+  if (!ReviewAuth.isLoggedIn()) {
+    const redirect = encodeURIComponent(`/join.html?token=${encodeURIComponent(token)}`);
+    location.replace(`/login.html?redirect=${redirect}`);
+    return;
+  }
+
+  async function preview() {
+    const res = await fetch(`/api/invites?token=${encodeURIComponent(token)}`, {
+      headers: ReviewAuth.headers(),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      sub.textContent = 'Invite not found.';
+      err.textContent = data.error || 'Invalid invite';
+      err.classList.add('show');
+      return;
+    }
+    if (data.status === 'accepted') {
+      sub.textContent = `You’re already in “${data.projectName}”.`;
+      btn.hidden = false;
+      btn.textContent = 'Open dashboard';
+      btn.onclick = () => (location.href = '/dashboard.html');
+      return;
+    }
+    sub.textContent = `You’ve been invited to “${data.projectName}”.`;
+    btn.hidden = false;
+    btn.onclick = accept;
+  }
+
+  async function accept() {
+    btn.disabled = true;
+    btn.textContent = 'Joining…';
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'accept', token }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not accept invite');
+      location.href = data.project?.viewUrl || '/dashboard.html';
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Accept invite';
+    }
+  }
+
+  preview().catch((e) => {
+    err.textContent = e.message;
+    err.classList.add('show');
+  });
+})();
+</script>
+</body>
+</html>

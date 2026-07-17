@@ -1,17 +1,26 @@
-import { getStore, saveStore } from './lib/store.js';
+import { getCore, getProjectStore, saveProjectStore, findProject, isMember } from './lib/store.js';
 import { getUser } from './lib/auth.js';
+import { json, corsOptions } from './lib/http.js';
 
 const ACTIVE_MS = 3 * 60 * 1000;
 
 export async function OPTIONS() {
-  return cors(null, 204);
+  return corsOptions('GET, POST, OPTIONS');
 }
 
 export async function GET(request) {
   const user = await getUser(request);
-  if (!user) return cors(JSON.stringify({ error: 'Not authenticated' }), 401);
+  if (!user) return json({ error: 'Not authenticated' }, 401);
 
-  const store = await getStore();
+  const url = new URL(request.url);
+  const projectId = url.searchParams.get('projectId');
+  if (!projectId) return json({ error: 'projectId required' }, 400);
+
+  const core = await getCore();
+  const project = findProject(core, projectId);
+  if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
+
+  const store = await getProjectStore(projectId);
   const now = Date.now();
   const online = [];
 
@@ -28,14 +37,22 @@ export async function GET(request) {
   }
 
   online.sort((a, b) => a.name.localeCompare(b.name));
-  return cors(JSON.stringify({ online }), 200);
+  return json({ online });
 }
 
 export async function POST(request) {
   const user = await getUser(request);
-  if (!user) return cors(JSON.stringify({ error: 'Not authenticated' }), 401);
+  if (!user) return json({ error: 'Not authenticated' }, 401);
 
-  const store = await getStore();
+  const body = await request.json().catch(() => ({}));
+  const projectId = body.projectId;
+  if (!projectId) return json({ error: 'projectId required' }, 400);
+
+  const core = await getCore();
+  const project = findProject(core, projectId);
+  if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
+
+  const store = await getProjectStore(projectId);
   if (!store.presence) store.presence = {};
 
   const email = user.email.toLowerCase();
@@ -53,17 +70,6 @@ export async function POST(request) {
     }
   }
 
-  await saveStore(store);
-  return cors(JSON.stringify({ ok: true }), 200);
-}
-
-function cors(body, status = 200) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  };
-  if (status === 204) return new Response(null, { status, headers });
-  return new Response(body, { status, headers });
+  await saveProjectStore(projectId, store);
+  return json({ ok: true });
 }

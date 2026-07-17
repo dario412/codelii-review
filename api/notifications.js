@@ -1,30 +1,46 @@
-import { getStore, saveStore } from './lib/store.js';
+import { getCore, getProjectStore, saveProjectStore, findProject, isMember } from './lib/store.js';
 import { getUser } from './lib/auth.js';
+import { json, corsOptions } from './lib/http.js';
 
 export async function OPTIONS() {
-  return cors(null, 204);
+  return corsOptions('GET, PATCH, OPTIONS');
 }
 
 export async function GET(request) {
   const user = await getUser(request);
-  if (!user) return cors(JSON.stringify({ error: 'Not authenticated' }), 401);
+  if (!user) return json({ error: 'Not authenticated' }, 401);
 
-  const store = await getStore();
+  const url = new URL(request.url);
+  const projectId = url.searchParams.get('projectId');
+  if (!projectId) return json({ error: 'projectId required' }, 400);
+
+  const core = await getCore();
+  const project = findProject(core, projectId);
+  if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
+
+  const store = await getProjectStore(projectId);
   const email = user.email.toLowerCase();
   const notifications = (store.notifications || [])
     .filter((n) => n.userEmail === email)
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const unread = notifications.filter((n) => !n.read).length;
-  return cors(JSON.stringify({ notifications, unread }), 200);
+  return json({ notifications, unread });
 }
 
 export async function PATCH(request) {
   const user = await getUser(request);
-  if (!user) return cors(JSON.stringify({ error: 'Not authenticated' }), 401);
+  if (!user) return json({ error: 'Not authenticated' }, 401);
 
   const body = await request.json();
-  const store = await getStore();
+  const projectId = body.projectId;
+  if (!projectId) return json({ error: 'projectId required' }, 400);
+
+  const core = await getCore();
+  const project = findProject(core, projectId);
+  if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
+
+  const store = await getProjectStore(projectId);
   const email = user.email.toLowerCase();
 
   if (body.markAllRead) {
@@ -36,17 +52,6 @@ export async function PATCH(request) {
     if (n) n.read = true;
   }
 
-  await saveStore(store);
-  return cors(JSON.stringify({ ok: true }), 200);
-}
-
-function cors(body, status = 200) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, PATCH, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  };
-  if (status === 204) return new Response(null, { status, headers });
-  return new Response(body, { status, headers });
+  await saveProjectStore(projectId, store);
+  return json({ ok: true });
 }

@@ -1,35 +1,54 @@
-import { getStore, saveStore, newId } from './lib/store.js';
+import { getCore, getProjectStore, saveProjectStore, findProject, isMember, newId } from './lib/store.js';
 import { getUser } from './lib/auth.js';
 import { notifyCommentTagged, notifyReply } from './lib/notifications.js';
+import { json, corsOptions } from './lib/http.js';
 
 export async function OPTIONS() {
-  return cors(null, 204);
+  return corsOptions();
 }
 
-export async function GET() {
-  const store = await getStore();
+export async function GET(request) {
+  const user = await getUser(request);
+  if (!user) return json({ error: 'Not authenticated' }, 401);
+
+  const url = new URL(request.url);
+  const projectId = url.searchParams.get('projectId');
+  if (!projectId) return json({ error: 'projectId required' }, 400);
+
+  const core = await getCore();
+  const project = findProject(core, projectId);
+  if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
+
+  const store = await getProjectStore(projectId);
   const comments = [...store.comments].sort(
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
   );
-  return cors(JSON.stringify({ comments }), 200);
+  return json({ comments });
 }
 
 export async function POST(request) {
   const user = await getUser(request);
-  if (!user) return cors(JSON.stringify({ error: 'Not authenticated' }), 401);
+  if (!user) return json({ error: 'Not authenticated' }, 401);
 
   const body = await request.json();
+  const projectId = (body.projectId || '').trim();
+  if (!projectId) return json({ error: 'projectId required' }, 400);
+
+  const core = await getCore();
+  const project = findProject(core, projectId);
+  if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
+
   const parentId = (body.parentId || '').trim();
   const text = (body.text || '').trim();
   const tags = Array.isArray(body.tags) ? body.tags : [];
 
-  if (!text) return cors(JSON.stringify({ error: 'Comment text is required' }), 400);
+  if (!text) return json({ error: 'Comment text is required' }, 400);
 
-  const store = await getStore();
+  const store = await getProjectStore(projectId);
 
   if (parentId) {
     const parent = store.comments.find((c) => c.id === parentId);
-    if (!parent) return cors(JSON.stringify({ error: 'Comment not found' }), 404);
+    if (!parent) return json({ error: 'Comment not found' }, 404);
 
     if (!parent.replies) parent.replies = [];
 
@@ -47,10 +66,8 @@ export async function POST(request) {
     };
 
     parent.replies.push(reply);
-
     notifyReply(store, parent, reply, user);
-
-    await saveStore(store);
+    await saveProjectStore(projectId, store);
 
     const notifyTags = [...tags];
     if (parent.authorEmail !== user.email && !tags.some((t) => t.email === parent.authorEmail)) {
@@ -58,25 +75,27 @@ export async function POST(request) {
     }
 
     if (notifyTags.length > 0) {
-      await notifyEmail(parent, reply, user, notifyTags, request, true);
+      await notifyEmail(project, parent, reply, user, notifyTags, request, true);
     }
 
-    return cors(JSON.stringify({ reply, comment: parent }), 201);
+    return json({ reply, comment: parent }, 201);
   }
 
-  const page = (body.page || '').trim();
+  const page = (body.page || body.path || '').trim();
   const x = Number(body.x);
   const y = Number(body.y);
   const scrollY = Number(body.scrollY) || 0;
 
-  if (!page) return cors(JSON.stringify({ error: 'Page is required' }), 400);
+  if (!page) return json({ error: 'Page path is required' }, 400);
   if (Number.isNaN(x) || Number.isNaN(y)) {
-    return cors(JSON.stringify({ error: 'Position is required' }), 400);
+    return json({ error: 'Position is required' }, 400);
   }
 
   const comment = {
     id: newId(),
     page,
+    path: page,
+    projectId,
     x,
     y,
     scrollY,
@@ -95,52 +114,59 @@ export async function POST(request) {
   };
 
   store.comments.push(comment);
-
   notifyCommentTagged(store, comment, user, comment.tags);
-
-  await saveStore(store);
+  await saveProjectStore(projectId, store);
 
   if (tags.length > 0) {
-    await notifyEmail(comment, comment, user, tags, request, false);
+    await notifyEmail(project, comment, comment, user, tags, request, false);
   }
 
-  return cors(JSON.stringify({ comment }), 201);
+  return json({ comment }, 201);
 }
 
 export async function PATCH(request) {
   const user = await getUser(request);
-  if (!user) return cors(JSON.stringify({ error: 'Not authenticated' }), 401);
+  if (!user) return json({ error: 'Not authenticated' }, 401);
 
   const body = await request.json();
-  const { id, resolved, text } = body;
-  if (!id) return cors(JSON.stringify({ error: 'Comment id required' }), 400);
+  const { id, resolved, text, projectId } = body;
+  if (!id || !projectId) return json({ error: 'id and projectId required' }, 400);
 
-  const store = await getStore();
+  const core = await getCore();
+  const project = findProject(core, projectId);
+  if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
+
+  const store = await getProjectStore(projectId);
   const comment = store.comments.find((c) => c.id === id);
-  if (!comment) return cors(JSON.stringify({ error: 'Not found' }), 404);
+  if (!comment) return json({ error: 'Not found' }, 404);
 
   if (typeof resolved === 'boolean') comment.resolved = resolved;
   if (text !== undefined) comment.text = text.trim();
 
-  await saveStore(store);
-  return cors(JSON.stringify({ comment }), 200);
+  await saveProjectStore(projectId, store);
+  return json({ comment });
 }
 
 export async function DELETE(request) {
   const user = await getUser(request);
-  if (!user) return cors(JSON.stringify({ error: 'Not authenticated' }), 401);
+  if (!user) return json({ error: 'Not authenticated' }, 401);
 
   const url = new URL(request.url);
   const id = url.searchParams.get('id');
-  if (!id) return cors(JSON.stringify({ error: 'Comment id required' }), 400);
+  const projectId = url.searchParams.get('projectId');
+  if (!id || !projectId) return json({ error: 'id and projectId required' }, 400);
 
-  const store = await getStore();
+  const core = await getCore();
+  const project = findProject(core, projectId);
+  if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
+
+  const store = await getProjectStore(projectId);
   const idx = store.comments.findIndex((c) => c.id === id);
-  if (idx === -1) return cors(JSON.stringify({ error: 'Not found' }), 404);
+  if (idx === -1) return json({ error: 'Not found' }, 404);
 
   const comment = store.comments[idx];
   if (comment.authorId !== user.id) {
-    return cors(JSON.stringify({ error: 'Only the author can delete' }), 403);
+    return json({ error: 'Only the author can delete' }, 403);
   }
 
   store.comments.splice(idx, 1);
@@ -150,16 +176,17 @@ export async function DELETE(request) {
   } catch {
     /* ignore */
   }
-  await saveStore(store);
-  return cors(JSON.stringify({ ok: true }), 200);
+  await saveProjectStore(projectId, store);
+  return json({ ok: true });
 }
 
-async function notifyEmail(comment, message, author, tags, request, isReply) {
+async function notifyEmail(project, comment, message, author, tags, request, isReply) {
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
   const siteUrl = process.env.SITE_URL || `${new URL(request.url).origin}`;
-
-  const link = `${siteUrl}${comment.page}?comment=${comment.id}`;
+  const prefix = project.type === 'github' ? `/s/${project.id}` : `/p/${project.id}`;
+  const pagePath = (comment.page || '').replace(/^\//, '');
+  const link = `${siteUrl}${prefix}/${pagePath}?comment=${comment.id}`;
   const messageText = message.text;
   const seen = new Set();
 
@@ -175,8 +202,8 @@ async function notifyEmail(comment, message, author, tags, request, isReply) {
         : `${author.name} tagged you in a review comment`;
 
     const intro = tag.isAuthor
-      ? `<strong>${escapeHtml(author.name)}</strong> replied to your comment on <strong>${escapeHtml(comment.page)}</strong>:`
-      : `<strong>${escapeHtml(author.name)}</strong> mentioned you ${isReply ? 'in a reply' : 'in a comment'} on <strong>${escapeHtml(comment.page)}</strong>:`;
+      ? `<strong>${escapeHtml(author.name)}</strong> replied to your comment on <strong>${escapeHtml(project.name)}</strong>:`
+      : `<strong>${escapeHtml(author.name)}</strong> mentioned you ${isReply ? 'in a reply' : 'in a comment'} on <strong>${escapeHtml(project.name)}</strong>:`;
 
     if (!apiKey) {
       console.log(`[notify] Would email ${email}: ${subject}`);
@@ -194,10 +221,10 @@ async function notifyEmail(comment, message, author, tags, request, isReply) {
           <div style="font-family: Inter, sans-serif; max-width: 520px;">
             <p>${intro}</p>
             ${isReply && !tag.isAuthor ? `<p style="color:#6B6E75;font-size:14px;">On: "${escapeHtml(comment.text.slice(0, 120))}${comment.text.length > 120 ? '…' : ''}"</p>` : ''}
-            <blockquote style="border-left: 3px solid #2A5FA8; margin: 16px 0; padding: 8px 16px; color: #2A2D34;">
+            <blockquote style="border-left: 3px solid #B8FF54; margin: 16px 0; padding: 8px 16px; color: #2A2D34;">
               ${escapeHtml(messageText)}
             </blockquote>
-            <p><a href="${link}" style="color: #2A5FA8;">View conversation on site →</a></p>
+            <p><a href="${link}" style="color: #002B2B;">View conversation →</a></p>
           </div>
         `,
       });
@@ -213,15 +240,4 @@ function escapeHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
-}
-
-function cors(body, status = 200) {
-  const headers = {
-    'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  };
-  if (status === 204) return new Response(null, { status, headers });
-  return new Response(body, { status, headers });
 }

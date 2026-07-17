@@ -7,7 +7,6 @@
     "node": ">=18"
   },
   "scripts": {
-    "inject": "node scripts/inject-review.js",
     "dev": "node scripts/local-server.js",
     "deploy": "vercel --prod"
   },

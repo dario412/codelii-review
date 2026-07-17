@@ -4,6 +4,5 @@ node_modules/
 .env*.local
 .DS_Store
 .vercel
-data/store.json
-data/screenshots/
+data/
 review-data/
