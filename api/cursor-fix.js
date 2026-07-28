@@ -108,11 +108,20 @@ export async function POST(request) {
     if (!prompt) return json({ error: 'prompt or commentId required' }, 400);
 
     const mode = body.mode || (project.localPath && !resolveRepoUrl(project) ? 'local' : 'cloud');
+    const workOnCurrentBranch = body.workOnCurrentBranch === true;
+    const autoCreatePR =
+      body.autoCreatePR !== undefined
+        ? Boolean(body.autoCreatePR)
+        : workOnCurrentBranch
+          ? false
+          : project.autoCreatePR !== false;
+
     const started = await startCursorFix({
       project,
       prompt,
       mode,
-      autoCreatePR: body.autoCreatePR ?? project.autoCreatePR !== false,
+      autoCreatePR,
+      workOnCurrentBranch,
     });
 
     const run = {
@@ -131,6 +140,9 @@ export async function POST(request) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
+    if (started.runtime === 'cloud') {
+      run.deliveryMode = workOnCurrentBranch ? 'main' : 'pr';
+    }
 
     if (!store.cursorRuns) store.cursorRuns = [];
     store.cursorRuns.unshift(run);

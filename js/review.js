@@ -315,9 +315,11 @@
     document.body.appendChild(toolbar);
     document.body.appendChild(sidebar);
     document.body.appendChild(pinsLayer);
+    ensureCursorFixModal();
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
+        closeCursorFixModal();
         closeBubble();
         closeNotifications();
         if (state.commentMode) toggleCommentMode();
@@ -1185,72 +1187,9 @@
       }, ['Post reply']),
     ]));
 
-    if (!showReplyForm && !replies.length) {
-      bubble.appendChild(el('div', { class: 'review-bubble-resolve' }, [
-        el('button', {
-          type: 'button',
-          class: 'review-reply-toggle',
-          onclick: (e) => {
-            e.stopPropagation();
-            openViewBubble(fresh, true);
-          },
-        }, ['↩ Reply']),
-        el('button', {
-          type: 'button',
-          class: 'review-btn-prompt-inline',
-          title: 'Copy a Cursor-ready prompt for this comment',
-          onclick: (e) => {
-            e.stopPropagation();
-            copyCommentPrompt(fresh, e.currentTarget);
-          },
-        }, ['Cursor prompt']),
-        el('button', {
-          type: 'button',
-          class: 'review-btn-fix-inline',
-          title: 'Start a Cursor agent to implement this comment',
-          onclick: (e) => {
-            e.stopPropagation();
-            fixCommentWithCursor(fresh, e.currentTarget);
-          },
-        }, ['Fix with Cursor']),
-        el('button', {
-          type: 'button',
-          onclick: () => toggleResolved(fresh),
-        }, [fresh.resolved ? 'Reopen' : '✓ Resolve']),
-        fresh.authorId === ReviewAuth.getUser()?.id
-          ? el('button', { type: 'button', onclick: () => deleteComment(fresh.id) }, ['Delete'])
-          : null,
-      ].filter(Boolean)));
-    } else {
-      bubble.appendChild(replyFormWrap);
-      bubble.appendChild(el('div', { class: 'review-bubble-resolve' }, [
-        el('button', {
-          type: 'button',
-          class: 'review-btn-prompt-inline',
-          title: 'Copy a Cursor-ready prompt for this comment',
-          onclick: (e) => {
-            e.stopPropagation();
-            copyCommentPrompt(fresh, e.currentTarget);
-          },
-        }, ['Cursor prompt']),
-        el('button', {
-          type: 'button',
-          class: 'review-btn-fix-inline',
-          title: 'Start a Cursor agent to implement this comment',
-          onclick: (e) => {
-            e.stopPropagation();
-            fixCommentWithCursor(fresh, e.currentTarget);
-          },
-        }, ['Fix with Cursor']),
-        el('button', {
-          type: 'button',
-          onclick: () => toggleResolved(fresh),
-        }, [fresh.resolved ? 'Reopen' : '✓ Resolve']),
-        fresh.authorId === ReviewAuth.getUser()?.id
-          ? el('button', { type: 'button', onclick: () => deleteComment(fresh.id) }, ['Delete'])
-          : null,
-      ].filter(Boolean)));
-    }
+    const canReply = !showReplyForm && !replies.length;
+    if (!canReply) bubble.appendChild(replyFormWrap);
+    bubble.appendChild(buildThreadActions(fresh, canReply));
 
     bubble.addEventListener('click', (e) => e.stopPropagation());
     bubble.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -1266,6 +1205,79 @@
     replyTextarea.addEventListener('input', () => updateTagPreview(replyTextarea, replyTagPreview));
     if (showReplyForm || replies.length) replyTextarea.focus();
     state.activeBubble = bubble;
+  }
+
+  function buildThreadActions(comment, showReplyButton) {
+    const isAuthor = comment.authorId === ReviewAuth.getUser()?.id;
+
+    const fixBtn = el('button', {
+      type: 'button',
+      class: 'review-action review-action-primary',
+      'data-tip': 'Start a Cursor agent to implement this',
+      onclick: (e) => {
+        e.stopPropagation();
+        fixCommentWithCursor(comment, e.currentTarget);
+      },
+    }, [icon('sparkle'), el('span', { 'data-btn-label': '' }, ['Fix with Cursor'])]);
+
+    const promptBtn = el('button', {
+      type: 'button',
+      class: 'review-action review-action-icon',
+      'data-icon-only': '',
+      'data-tip': 'Copy Cursor prompt',
+      'data-tip-align': 'end',
+      'aria-label': 'Copy Cursor prompt',
+      onclick: (e) => {
+        e.stopPropagation();
+        copyCommentPrompt(comment, e.currentTarget);
+      },
+    }, [icon('copy')]);
+
+    const resolveBtn = el('button', {
+      type: 'button',
+      class: 'review-action review-action-ghost review-action-resolve',
+      onclick: (e) => {
+        e.stopPropagation();
+        toggleResolved(comment);
+      },
+    }, [
+      icon(comment.resolved ? 'reopen' : 'checkCircle'),
+      el('span', {}, [comment.resolved ? 'Reopen' : 'Resolve']),
+    ]);
+
+    const secondary = el('div', { class: 'review-action-row' }, [
+      showReplyButton
+        ? el('button', {
+          type: 'button',
+          class: 'review-action review-action-ghost',
+          onclick: (e) => {
+            e.stopPropagation();
+            openViewBubble(comment, true);
+          },
+        }, [icon('reply'), el('span', {}, ['Reply'])])
+        : null,
+      resolveBtn,
+      isAuthor
+        ? el('button', {
+          type: 'button',
+          class: 'review-action review-action-icon review-action-danger',
+          'data-tip': 'Delete comment',
+          'data-tip-align': 'end',
+          'aria-label': 'Delete comment',
+          onclick: (e) => {
+            e.stopPropagation();
+            deleteComment(comment.id);
+          },
+        }, [icon('trash')])
+        : null,
+    ].filter(Boolean));
+
+    return el('div', {
+      class: `review-bubble-resolve${comment.resolved ? ' review-bubble-resolve-done' : ''}`,
+    }, [
+      el('div', { class: 'review-action-row' }, [fixBtn, promptBtn]),
+      secondary,
+    ]);
   }
 
   async function submitReply(parentId, textarea) {
@@ -1472,95 +1484,273 @@
     return 'cloud';
   }
 
-  async function fixCommentWithCursor(comment, btn) {
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Starting…';
-    }
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 45000);
-    try {
-      const res = await fetch('/api/cursor-fix', {
-        method: 'POST',
-        headers: ReviewAuth.headers(),
-        signal: controller.signal,
-        body: JSON.stringify({
-          projectId,
-          commentId: comment.id,
-          mode: preferredFixMode(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to start agent');
-      flashCopied(btn, 'Started');
-      showPromptToast(data.message || 'Cursor agent started');
-      if (data.agentUrl) {
-        // Open agent page so you can watch progress
-        window.open(data.agentUrl, '_blank', 'noopener');
-      }
-      if (data.run?.agentId) {
-        console.log('[codelii] Cursor agent', data.run.agentId, 'run', data.run.runId);
-      }
-    } catch (err) {
-      const msg =
-        err.name === 'AbortError'
-          ? 'Timed out starting the agent. Try again — if it keeps hanging, check Vercel logs / CURSOR_API_KEY.'
-          : err.message || 'Could not start Cursor agent';
-      alert(msg);
-      if (btn) btn.textContent = btn.classList.contains('review-btn-fix-inline') ? 'Fix with Cursor' : 'Fix';
-    } finally {
-      clearTimeout(timer);
-      if (btn) btn.disabled = false;
+  const cursorFixDraft = {
+    commentId: null,
+    scope: 'comment',
+    triggerBtn: null,
+  };
+
+  function ensureCursorFixModal() {
+    if (document.getElementById('review-cursor-fix-modal')) return;
+
+    const backdrop = el('div', {
+      class: 'review-cursor-fix-backdrop',
+      id: 'review-cursor-fix-modal',
+      onclick: (e) => {
+        if (e.target.id === 'review-cursor-fix-modal') closeCursorFixModal();
+      },
+    });
+
+    const panel = el('div', { class: 'review-cursor-fix-panel' }, [
+      el('div', { class: 'review-cursor-fix-header' }, [
+        el('h3', { id: 'review-cursor-fix-title' }, ['Fix with Cursor']),
+        el('button', {
+          type: 'button',
+          class: 'review-cursor-fix-close',
+          onclick: closeCursorFixModal,
+        }, ['×']),
+      ]),
+      el('p', { class: 'review-cursor-fix-sub', id: 'review-cursor-fix-sub' }, [
+        'Review and edit the prompt before sending it to Cursor.',
+      ]),
+      el('label', { class: 'review-cursor-fix-label', for: 'review-cursor-fix-text' }, ['Prompt']),
+      el('textarea', {
+        class: 'review-cursor-fix-text',
+        id: 'review-cursor-fix-text',
+        rows: 14,
+      }),
+      el('div', { class: 'review-cursor-fix-delivery', id: 'review-cursor-fix-delivery' }, [
+        el('p', { class: 'review-cursor-fix-label' }, ['When the agent finishes']),
+        el('label', { class: 'review-cursor-fix-radio' }, [
+          el('input', {
+            type: 'radio',
+            name: 'cursor-delivery',
+            value: 'pr',
+            id: 'cursor-delivery-pr',
+            checked: true,
+          }),
+          el('span', {}, [
+            el('strong', {}, ['Open a pull request']),
+            ' — recommended; review changes before merging',
+          ]),
+        ]),
+        el('label', { class: 'review-cursor-fix-radio' }, [
+          el('input', {
+            type: 'radio',
+            name: 'cursor-delivery',
+            value: 'main',
+            id: 'cursor-delivery-main',
+          }),
+          el('span', {}, [
+            el('strong', {}, ['Push to main']),
+            ` — commits go directly to ${project.repoRef || 'main'}`,
+          ]),
+        ]),
+      ]),
+      el('p', { class: 'review-cursor-fix-note', id: 'review-cursor-fix-local-note', hidden: true }, [
+        'Local agents apply changes in your project folder on this machine. Delivery options apply to cloud agents only.',
+      ]),
+      el('div', { class: 'review-cursor-fix-error', id: 'review-cursor-fix-error' }),
+      el('div', { class: 'review-cursor-fix-actions' }, [
+        el('button', {
+          type: 'button',
+          class: 'review-btn',
+          onclick: closeCursorFixModal,
+        }, ['Cancel']),
+        el('button', {
+          type: 'button',
+          class: 'review-btn review-btn-fix',
+          id: 'review-cursor-fix-send',
+          onclick: submitCursorFixFromModal,
+        }, ['Send to Cursor']),
+      ]),
+    ]);
+
+    backdrop.appendChild(panel);
+    document.body.appendChild(backdrop);
+  }
+
+  function closeCursorFixModal() {
+    const modal = document.getElementById('review-cursor-fix-modal');
+    if (modal) modal.classList.remove('open');
+    cursorFixDraft.commentId = null;
+    cursorFixDraft.scope = 'comment';
+    cursorFixDraft.triggerBtn = null;
+    const err = document.getElementById('review-cursor-fix-error');
+    if (err) {
+      err.textContent = '';
+      err.classList.remove('show');
     }
   }
 
-  async function fixAllOpenWithCursor(btn) {
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Starting…';
+  function openCursorFixModal({ comment, scope }) {
+    ensureCursorFixModal();
+    if (!window.ReviewPrompts) {
+      alert('Prompt helper failed to load');
+      return;
     }
+
+    cursorFixDraft.commentId = comment?.id || null;
+    cursorFixDraft.scope = scope || (comment ? 'comment' : 'all');
+    cursorFixDraft.triggerBtn = null;
+
+    let promptText = '';
+    if (cursorFixDraft.scope === 'all') {
+      promptText = ReviewPrompts.buildAllOpenPrompts(state.comments, project);
+      if (!promptText) {
+        showPromptToast('No open comments to fix');
+        return;
+      }
+    } else if (comment) {
+      promptText = ReviewPrompts.buildCursorPrompt(comment, project);
+    }
+
+    const title = document.getElementById('review-cursor-fix-title');
+    const sub = document.getElementById('review-cursor-fix-sub');
+    const textarea = document.getElementById('review-cursor-fix-text');
+    const delivery = document.getElementById('review-cursor-fix-delivery');
+    const localNote = document.getElementById('review-cursor-fix-local-note');
+    const isCloud = preferredFixMode() === 'cloud';
+
+    if (title) {
+      title.textContent =
+        cursorFixDraft.scope === 'all' ? 'Fix all open comments' : 'Fix with Cursor';
+    }
+    if (sub) {
+      sub.textContent =
+        cursorFixDraft.scope === 'all'
+          ? 'Edit the combined prompt for all open comments, then send to Cursor.'
+          : 'Review and edit the prompt for this comment before sending it to Cursor.';
+    }
+    if (textarea) textarea.value = promptText;
+
+    const defaultPr = project.autoCreatePR !== false;
+    const prRadio = document.getElementById('cursor-delivery-pr');
+    const mainRadio = document.getElementById('cursor-delivery-main');
+    if (prRadio) prRadio.checked = defaultPr;
+    if (mainRadio) mainRadio.checked = !defaultPr;
+
+    if (delivery) delivery.hidden = !isCloud;
+    if (localNote) localNote.hidden = isCloud;
+
+    const modal = document.getElementById('review-cursor-fix-modal');
+    if (modal) {
+      modal.classList.add('open');
+      textarea?.focus();
+    }
+  }
+
+  function fixCommentWithCursor(comment, btn) {
+    cursorFixDraft.triggerBtn = btn || null;
+    openCursorFixModal({ comment, scope: 'comment' });
+  }
+
+  function fixAllOpenWithCursor(btn) {
+    cursorFixDraft.triggerBtn = btn || null;
+    openCursorFixModal({ scope: 'all' });
+  }
+
+  async function submitCursorFixFromModal() {
+    const textarea = document.getElementById('review-cursor-fix-text');
+    const errEl = document.getElementById('review-cursor-fix-error');
+    const sendBtn = document.getElementById('review-cursor-fix-send');
+    const prompt = (textarea?.value || '').trim();
+
+    if (!prompt) {
+      if (errEl) {
+        errEl.textContent = 'Prompt cannot be empty.';
+        errEl.classList.add('show');
+      }
+      return;
+    }
+    if (errEl) {
+      errEl.textContent = '';
+      errEl.classList.remove('show');
+    }
+
+    const isCloud = preferredFixMode() === 'cloud';
+    const mainRadio = document.getElementById('cursor-delivery-main');
+    const pushToMain = isCloud && mainRadio?.checked;
+    const autoCreatePR = isCloud && !pushToMain;
+
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.textContent = 'Sending…';
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 45000);
+
     try {
+      const payload = {
+        projectId,
+        prompt,
+        mode: preferredFixMode(),
+        scope: cursorFixDraft.scope,
+      };
+      if (cursorFixDraft.scope === 'all') {
+        payload.scope = 'all';
+      } else if (cursorFixDraft.commentId) {
+        payload.commentId = cursorFixDraft.commentId;
+      }
+      if (isCloud) {
+        payload.workOnCurrentBranch = pushToMain;
+        payload.autoCreatePR = autoCreatePR;
+      }
+
       const res = await fetch('/api/cursor-fix', {
         method: 'POST',
         headers: ReviewAuth.headers(),
         signal: controller.signal,
-        body: JSON.stringify({
-          projectId,
-          scope: 'all',
-          mode: preferredFixMode(),
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to start agent');
-      flashCopied(btn, 'Started');
-      showPromptToast(data.message || 'Cursor agent started for all open comments');
+
+      const triggerBtn = cursorFixDraft.triggerBtn;
+      closeCursorFixModal();
+      showPromptToast(data.message || 'Cursor agent started');
       if (data.agentUrl) window.open(data.agentUrl, '_blank', 'noopener');
+
+      if (triggerBtn) flashCopied(triggerBtn, 'Started');
     } catch (err) {
       const msg =
         err.name === 'AbortError'
           ? 'Timed out starting the agent. Try again.'
           : err.message || 'Could not start Cursor agent';
-      alert(msg);
+      if (errEl) {
+        errEl.textContent = msg;
+        errEl.classList.add('show');
+      } else {
+        alert(msg);
+      }
     } finally {
       clearTimeout(timer);
-      if (btn) {
-        btn.disabled = false;
-        renderSidebar();
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = 'Send to Cursor';
       }
     }
   }
 
   function flashCopied(btn, label) {
     if (!btn) return;
-    const prev = btn.dataset.label || btn.textContent;
-    btn.dataset.label = prev;
-    btn.textContent = label || 'Copied';
     btn.classList.add('copied');
+
+    // Icon buttons only flash colour, otherwise the swap would drop their SVG.
+    const target = btn.hasAttribute('data-icon-only')
+      ? null
+      : btn.querySelector('[data-btn-label]') || btn;
+
+    if (target) {
+      const prev = target.dataset.label || target.textContent;
+      target.dataset.label = prev;
+      target.textContent = label || 'Copied';
+    }
+
     setTimeout(() => {
-      btn.textContent = btn.dataset.label || prev;
       btn.classList.remove('copied');
+      if (target) target.textContent = target.dataset.label;
     }, 1600);
   }
 
@@ -1703,6 +1893,24 @@
       .join('')
       .slice(0, 2)
       .toUpperCase();
+  }
+
+  /* Phosphor Icons (bold, 256x256) — inlined so the overlay stays dependency-free */
+  const PHOSPHOR_PATHS = {
+    reply: 'M236,200a12,12,0,0,1-24,0,84.09,84.09,0,0,0-84-84H61l27.52,27.51a12,12,0,0,1-17,17l-48-48a12,12,0,0,1,0-17l48-48a12,12,0,0,1,17,17L61,92h67A108.12,108.12,0,0,1,236,200Z',
+    copy: 'M216,28H88A12,12,0,0,0,76,40V76H40A12,12,0,0,0,28,88V216a12,12,0,0,0,12,12H168a12,12,0,0,0,12-12V180h36a12,12,0,0,0,12-12V40A12,12,0,0,0,216,28ZM156,204H52V100H156Zm48-48H180V88a12,12,0,0,0-12-12H100V52H204Z',
+    sparkle: 'M199,125.31l-49.88-18.39L130.69,57a19.92,19.92,0,0,0-37.38,0L74.92,106.92,25,125.31a19.92,19.92,0,0,0,0,37.38l49.88,18.39L93.31,231a19.92,19.92,0,0,0,37.38,0l18.39-49.88L199,162.69a19.92,19.92,0,0,0,0-37.38Zm-63.38,35.16a12,12,0,0,0-7.11,7.11L112,212.28l-16.47-44.7a12,12,0,0,0-7.11-7.11L43.72,144l44.7-16.47a12,12,0,0,0,7.11-7.11L112,75.72l16.47,44.7a12,12,0,0,0,7.11,7.11L180.28,144ZM140,40a12,12,0,0,1,12-12h12V16a12,12,0,0,1,24,0V28h12a12,12,0,0,1,0,24H188V64a12,12,0,0,1-24,0V52H152A12,12,0,0,1,140,40ZM252,88a12,12,0,0,1-12,12h-4v4a12,12,0,0,1-24,0v-4h-4a12,12,0,0,1,0-24h4V72a12,12,0,0,1,24,0v4h4A12,12,0,0,1,252,88Z',
+    checkCircle: 'M176.49,95.51a12,12,0,0,1,0,17l-56,56a12,12,0,0,1-17,0l-24-24a12,12,0,1,1,17-17L112,143l47.51-47.52A12,12,0,0,1,176.49,95.51ZM236,128A108,108,0,1,1,128,20,108.12,108.12,0,0,1,236,128Zm-24,0a84,84,0,1,0-84,84A84.09,84.09,0,0,0,212,128Z',
+    reopen: 'M228,128a100,100,0,0,1-98.66,100H128a99.39,99.39,0,0,1-68.62-27.29,12,12,0,0,1,16.48-17.45,76,76,0,1,0-1.57-109c-.13.13-.25.25-.39.37L54.89,92H72a12,12,0,0,1,0,24H24a12,12,0,0,1-12-12V56a12,12,0,0,1,24,0V76.72L57.48,57.06A100,100,0,0,1,228,128Z',
+    trash: 'M216,48H180V36A28,28,0,0,0,152,8H104A28,28,0,0,0,76,36V48H40a12,12,0,0,0,0,24h4V208a20,20,0,0,0,20,20H192a20,20,0,0,0,20-20V72h4a12,12,0,0,0,0-24ZM100,36a4,4,0,0,1,4-4h48a4,4,0,0,1,4,4V48H100Zm88,168H68V72H188ZM116,104v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Zm48,0v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Z',
+  };
+
+  function icon(name, size = 17) {
+    const wrap = el('span', { class: 'review-icon', 'aria-hidden': 'true' });
+    wrap.innerHTML =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" ` +
+      `viewBox="0 0 256 256" fill="currentColor"><path d="${PHOSPHOR_PATHS[name]}"/></svg>`;
+    return wrap;
   }
 
   function el(tag, attrs, children) {

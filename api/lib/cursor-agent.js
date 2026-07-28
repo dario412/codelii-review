@@ -28,7 +28,7 @@ function authHeader(key) {
  * Cloud uses the async REST API so the HTTP request returns immediately.
  * Local still uses the SDK against a folder on this machine.
  */
-export async function startCursorFix({ project, prompt, mode, autoCreatePR }) {
+export async function startCursorFix({ project, prompt, mode, autoCreatePR, workOnCurrentBranch }) {
   const key = apiKey();
   const modelId = process.env.CURSOR_MODEL?.trim() || 'composer-2.5';
   const runtime = mode || (project.localPath ? 'local' : 'cloud');
@@ -37,16 +37,19 @@ export async function startCursorFix({ project, prompt, mode, autoCreatePR }) {
     return startLocalFix({ key, modelId, project, prompt });
   }
 
-  return startCloudFixRest({ key, modelId, project, prompt, autoCreatePR });
+  return startCloudFixRest({ key, modelId, project, prompt, autoCreatePR, workOnCurrentBranch });
 }
 
-async function startCloudFixRest({ key, modelId, project, prompt, autoCreatePR }) {
+async function startCloudFixRest({ key, modelId, project, prompt, autoCreatePR, workOnCurrentBranch }) {
   const repoUrl = resolveRepoUrl(project);
   if (!repoUrl) {
     throw new Error(
       'Cloud Fix needs a GitHub repo. Use a GitHub project, or set Repo URL in Settings.'
     );
   }
+
+  const pushToMain = workOnCurrentBranch === true;
+  const openPr = pushToMain ? false : autoCreatePR !== false;
 
   const body = {
     prompt: { text: prompt },
@@ -57,7 +60,8 @@ async function startCloudFixRest({ key, modelId, project, prompt, autoCreatePR }
         startingRef: project.repoRef || 'main',
       },
     ],
-    autoCreatePR: autoCreatePR !== false,
+    autoCreatePR: openPr,
+    workOnCurrentBranch: pushToMain,
     skipReviewerRequest: true,
     name: `Codelii · ${project.name}`,
   };
