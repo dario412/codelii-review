@@ -125,6 +125,7 @@ export async function POST(request) {
       runId: started.runId,
       status: started.status || 'running',
       repoUrl: started.repoUrl || resolveRepoUrl(project),
+      agentUrl: started.agentUrl || null,
       startedBy: user.id,
       startedByName: user.name,
       createdAt: new Date().toISOString(),
@@ -142,8 +143,11 @@ export async function POST(request) {
         run,
         message:
           started.runtime === 'cloud'
-            ? 'Cloud agent started. Filter Cursor agents by Source → SDK to watch it. A PR may open when it finishes.'
+            ? started.agentUrl
+              ? `Cloud agent started. Open it: ${started.agentUrl}`
+              : 'Cloud agent started. In Cursor: Filter → Source → SDK (or Agents on the web).'
             : 'Local agent started against your project folder.',
+        agentUrl: started.agentUrl || null,
       },
       201
     );

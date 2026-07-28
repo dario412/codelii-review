@@ -1477,10 +1477,13 @@
       btn.disabled = true;
       btn.textContent = 'Starting…';
     }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
     try {
       const res = await fetch('/api/cursor-fix', {
         method: 'POST',
         headers: ReviewAuth.headers(),
+        signal: controller.signal,
         body: JSON.stringify({
           projectId,
           commentId: comment.id,
@@ -1491,13 +1494,22 @@
       if (!res.ok) throw new Error(data.error || 'Failed to start agent');
       flashCopied(btn, 'Started');
       showPromptToast(data.message || 'Cursor agent started');
+      if (data.agentUrl) {
+        // Open agent page so you can watch progress
+        window.open(data.agentUrl, '_blank', 'noopener');
+      }
       if (data.run?.agentId) {
         console.log('[codelii] Cursor agent', data.run.agentId, 'run', data.run.runId);
       }
     } catch (err) {
-      alert(err.message || 'Could not start Cursor agent');
+      const msg =
+        err.name === 'AbortError'
+          ? 'Timed out starting the agent. Try again — if it keeps hanging, check Vercel logs / CURSOR_API_KEY.'
+          : err.message || 'Could not start Cursor agent';
+      alert(msg);
       if (btn) btn.textContent = btn.classList.contains('review-btn-fix-inline') ? 'Fix with Cursor' : 'Fix';
     } finally {
+      clearTimeout(timer);
       if (btn) btn.disabled = false;
     }
   }
@@ -1507,10 +1519,13 @@
       btn.disabled = true;
       btn.textContent = 'Starting…';
     }
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
     try {
       const res = await fetch('/api/cursor-fix', {
         method: 'POST',
         headers: ReviewAuth.headers(),
+        signal: controller.signal,
         body: JSON.stringify({
           projectId,
           scope: 'all',
@@ -1521,9 +1536,15 @@
       if (!res.ok) throw new Error(data.error || 'Failed to start agent');
       flashCopied(btn, 'Started');
       showPromptToast(data.message || 'Cursor agent started for all open comments');
+      if (data.agentUrl) window.open(data.agentUrl, '_blank', 'noopener');
     } catch (err) {
-      alert(err.message || 'Could not start Cursor agent');
+      const msg =
+        err.name === 'AbortError'
+          ? 'Timed out starting the agent. Try again.'
+          : err.message || 'Could not start Cursor agent';
+      alert(msg);
     } finally {
+      clearTimeout(timer);
       if (btn) {
         btn.disabled = false;
         renderSidebar();
