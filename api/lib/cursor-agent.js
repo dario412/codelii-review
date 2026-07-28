@@ -28,7 +28,7 @@ function authHeader(key) {
  * Cloud uses the async REST API so the HTTP request returns immediately.
  * Local still uses the SDK against a folder on this machine.
  */
-export async function startCursorFix({ project, prompt, mode, autoCreatePR, workOnCurrentBranch }) {
+export async function startCursorFix({ project, prompt, mode }) {
   const key = apiKey();
   const modelId = process.env.CURSOR_MODEL?.trim() || 'composer-2.5';
   const runtime = mode || (project.localPath ? 'local' : 'cloud');
@@ -37,10 +37,10 @@ export async function startCursorFix({ project, prompt, mode, autoCreatePR, work
     return startLocalFix({ key, modelId, project, prompt });
   }
 
-  return startCloudFixRest({ key, modelId, project, prompt, autoCreatePR, workOnCurrentBranch });
+  return startCloudFixRest({ key, modelId, project, prompt });
 }
 
-async function startCloudFixRest({ key, modelId, project, prompt, autoCreatePR, workOnCurrentBranch }) {
+async function startCloudFixRest({ key, modelId, project, prompt }) {
   const repoUrl = resolveRepoUrl(project);
   if (!repoUrl) {
     throw new Error(
@@ -48,9 +48,8 @@ async function startCloudFixRest({ key, modelId, project, prompt, autoCreatePR, 
     );
   }
 
-  const pushToMain = workOnCurrentBranch === true;
-  const openPr = pushToMain ? false : autoCreatePR !== false;
-
+  // Always open a PR on a new branch. Direct push to main is intentionally not
+  // offered — undo and review both depend on GitHub's PR diff.
   const body = {
     prompt: { text: prompt },
     model: { id: modelId },
@@ -60,8 +59,8 @@ async function startCloudFixRest({ key, modelId, project, prompt, autoCreatePR, 
         startingRef: project.repoRef || 'main',
       },
     ],
-    autoCreatePR: openPr,
-    workOnCurrentBranch: pushToMain,
+    autoCreatePR: true,
+    workOnCurrentBranch: false,
     skipReviewerRequest: true,
     name: `Codelii · ${project.name}`,
   };
@@ -96,6 +95,7 @@ async function startCloudFixRest({ key, modelId, project, prompt, autoCreatePR, 
     status: run.status || agent.status || 'CREATING',
     repoUrl,
     agentUrl: agent.url || (agent.id ? `https://cursor.com/agents/${agent.id}` : null),
+    deliveryMode: 'pr',
   };
 }
 
@@ -139,6 +139,7 @@ export async function getCursorRunStatus({ agentId, runId, runtime, localPath })
         const agent = data.agent || data;
         let runStatus = null;
         let prUrl = null;
+        let branch = null;
         let resultText = null;
 
         const activeRunId = runId || agent.latestRunId;
@@ -154,7 +155,9 @@ export async function getCursorRunStatus({ agentId, runId, runtime, localPath })
               runStatus = run.status;
               resultText = run.summary || run.result || null;
               const branches = run.git?.branches || agent.git?.branches || [];
-              prUrl = branches.find((b) => b.prUrl)?.prUrl || null;
+              const primary = branches.find((b) => b.prUrl) || branches[0] || null;
+              prUrl = primary?.prUrl || null;
+              branch = primary?.branch || null;
             }
           } catch {
             /* ignore */
@@ -168,6 +171,7 @@ export async function getCursorRunStatus({ agentId, runId, runtime, localPath })
           name: agent.name,
           agentUrl: agent.url || `https://cursor.com/agents/${agentId}`,
           prUrl,
+          branch,
           resultText,
         };
       }
@@ -195,6 +199,57 @@ export async function getCursorRunStatus({ agentId, runId, runtime, localPath })
   }
 
   return { agentId, runId, status: 'unknown' };
+}
+
+/**
+ * Lightweight file-change preview via GitHub's compare API.
+ * Works unauthenticated for public repos; private repos need GITHUB_TOKEN.
+ */
+export async function fetchComparePreview({ repoUrl, baseRef, branch }) {
+  if (!repoUrl || !branch) return null;
+  const parsed = String(repoUrl)
+    .replace(/^https?:\/\//i, '')
+    .replace(/^github\.com\//i, '')
+    .replace(/\.git$/i, '')
+    .replace(/\/$/, '');
+  const [owner, repo] = parsed.split('/');
+  if (!owner || !repo) return null;
+
+  const base = encodeURIComponent(baseRef || 'main');
+  const head = encodeURIComponent(branch);
+  const headers = {
+    Accept: 'application/vnd.github+json',
+    'User-Agent': 'codelii-review',
+  };
+  if (process.env.GITHUB_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/compare/${base}...${head}`,
+      { headers }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const files = (data.files || []).slice(0, 40).map((f) => ({
+      filename: f.filename,
+      status: f.status,
+      additions: f.additions || 0,
+      deletions: f.deletions || 0,
+    }));
+    return {
+      compareUrl: `https://github.com/${owner}/${repo}/compare/${base}...${head}?expand=1`,
+      aheadBy: data.ahead_by || 0,
+      total: data.files?.length || files.length,
+      additions: data.files?.reduce((n, f) => n + (f.additions || 0), 0) || 0,
+      deletions: data.files?.reduce((n, f) => n + (f.deletions || 0), 0) || 0,
+      files,
+    };
+  } catch (err) {
+    console.warn('[cursor] compare preview failed:', err.message);
+    return null;
+  }
 }
 
 function summarizeAgent(info) {

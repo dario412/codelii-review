@@ -1,8 +1,14 @@
 import { put, get, del, list } from '@vercel/blob';
 
 const CORE_PATH = 'review-data/core.json';
-const EMPTY_CORE = { users: [], projects: [] };
-const EMPTY_PROJECT = { comments: [], notifications: [], presence: {}, cursorRuns: [] };
+const EMPTY_CORE = { users: [], projects: [], stripeEvents: [] };
+const EMPTY_PROJECT = {
+  comments: [],
+  notifications: [],
+  presence: {},
+  cursorRuns: [],
+  pageApprovals: [],
+};
 
 function isVercel() {
   return Boolean(process.env.VERCEL);
@@ -31,6 +37,8 @@ function normalizeCore(raw) {
   return {
     users: Array.isArray(raw?.users) ? raw.users : [],
     projects: Array.isArray(raw?.projects) ? raw.projects : [],
+    // Stripe event ids already applied, newest last. Used for replay protection.
+    stripeEvents: Array.isArray(raw?.stripeEvents) ? raw.stripeEvents : [],
   };
 }
 
@@ -40,6 +48,7 @@ function normalizeProject(raw) {
     notifications: Array.isArray(raw?.notifications) ? raw.notifications : [],
     presence: raw?.presence && typeof raw.presence === 'object' ? raw.presence : {},
     cursorRuns: Array.isArray(raw?.cursorRuns) ? raw.cursorRuns : [],
+    pageApprovals: Array.isArray(raw?.pageApprovals) ? raw.pageApprovals : [],
   };
 }
 
@@ -343,7 +352,8 @@ export function publicProject(project, users = []) {
     ownerEmail: owner?.email || '',
     memberIds: project.memberIds || [],
     memberCount: 1 + (project.memberIds || []).filter((id) => id !== project.ownerId).length,
-    linkToken: project.linkToken || null,
+    // Share links are owner-only; they are returned by /api/invites, not here.
+    linkAccess: project.linkAccess !== false,
     createdAt: project.createdAt,
     status: project.status || 'ready',
   };

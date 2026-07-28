@@ -932,12 +932,193 @@ a { color: inherit; text-decoration: none; }
   background: rgba(255, 255, 255, 0.07);
   color: var(--brand-muted);
 }
+.role-chip.guest {
+  background: rgba(120, 190, 255, 0.14);
+  color: #8ec6ff;
+}
+
+/* Share-link controls */
+.modal-section-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 22px 0 0;
+}
+.modal-section-row .modal-section-label { margin: 0; }
+
+.section-hint {
+  margin: 6px 0 0;
+  color: var(--brand-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.share-row.is-off { opacity: 0.45; }
+.share-row.is-off input,
+.share-row.is-off #share-copy { pointer-events: none; }
+
+.switch {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  cursor: pointer;
+}
+.switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+.switch-track {
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--brand-line);
+  transition: background 0.18s ease, border-color 0.18s ease;
+}
+.switch-track::after {
+  content: '';
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 2px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.75);
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+.switch input:checked + .switch-track {
+  background: rgba(184, 255, 84, 0.28);
+  border-color: var(--brand-accent);
+}
+.switch input:checked + .switch-track::after {
+  transform: translateX(18px);
+  background: var(--brand-accent);
+}
+.switch input:focus-visible + .switch-track {
+  box-shadow: 0 0 0 3px rgba(184, 255, 84, 0.25);
+}
+
+/* Billing */
+.billing-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-line);
+  background: var(--surface-1);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+.billing-chip:hover {
+  background: var(--surface-2);
+  border-color: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+.billing-chip .icon { color: var(--brand-muted); }
+.billing-chip.trial {
+  background: rgba(184, 255, 84, 0.1);
+  border-color: rgba(184, 255, 84, 0.24);
+  color: var(--brand-accent);
+}
+.billing-chip.trial .icon { color: var(--brand-accent); }
+.billing-chip.alert {
+  background: rgba(255, 138, 138, 0.12);
+  border-color: rgba(255, 138, 138, 0.3);
+  color: var(--danger);
+}
+.billing-chip.alert .icon { color: var(--danger); }
+
+.billing-banner {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding: 13px 16px;
+  border-radius: var(--radius-btn);
+  border: 1px solid rgba(255, 138, 138, 0.28);
+  background: rgba(255, 138, 138, 0.1);
+  color: #ffc9c9;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.billing-banner.show { display: flex; }
+.billing-banner .icon { flex: none; color: var(--danger); }
+.billing-banner p { flex: 1; margin: 0; }
+
+.plan-card {
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(184, 255, 84, 0.2);
+  background: rgba(184, 255, 84, 0.06);
+}
+
+.plan-price {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.plan-price .amount {
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--brand-accent);
+}
+.plan-price .per {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-muted);
+}
+
+.plan-note {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.8);
+}
+.plan-note strong { color: #fff; font-weight: 700; }
+
+.plan-list {
+  list-style: none;
+  margin: 18px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.plan-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.82);
+}
+.plan-list .icon { flex: none; margin-top: 1px; color: var(--brand-accent); }
+
+.plan-secure {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--brand-muted);
+}
+.plan-secure .icon { flex: none; margin-top: 1px; }
 
 @media (max-width: 800px) {
   .features { grid-template-columns: 1fr; }
   .site-nav { padding: 16px 20px; }
   .app-nav { padding: 0 16px; }
   .user-chip .who { display: none; }
+  .billing-chip .label { display: none; }
   .dash-wrap { padding: 24px 16px 72px; }
   .dash-tools { width: 100%; }
   .search-field { flex: 1; }

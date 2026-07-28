@@ -68,5 +68,11 @@ export function publicUser(user) {
     email: user.email,
     name: user.name,
     avatar: user.avatar || null,
+    guest: user.guest === true,
   };
+}
+
+/** A guest joined through a share link: no password, no Google, link-scoped. */
+export function isGuest(user) {
+  return Boolean(user && user.guest === true);
 }

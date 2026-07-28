@@ -1,32 +1,49 @@
 /**
  * Inject review overlay scripts into HTML and rewrite absolute/relative URLs for proxy mode.
  */
+import { canUseCursorTools } from './permissions.js';
 
-export function injectOverlay(html, project) {
+export function injectOverlay(html, project, viewer) {
   const hasSource =
     typeof project.hasSource === 'boolean'
       ? project.hasSource
       : project.type === 'github';
+  const cursorTools = canUseCursorTools(project, viewer);
+
   const ctx = {
+    canUseCursorTools: cursorTools,
+    // Project owner can moderate comments (delete / hide). Not a full role system.
+    isOwner: Boolean(viewer && project.ownerId === viewer.id),
     id: project.id,
     name: project.name,
     type: project.type,
     source: project.source,
     baseUrl: project.baseUrl || null,
     hasSource,
-    repoUrl: project.repoUrl || (project.type === 'github' ? project.source : null),
-    localPath: project.localPath || null,
-    autoCreatePR: project.autoCreatePR !== false,
     viewPrefix: project.type === 'github' ? `/s/${project.id}` : `/p/${project.id}`,
   };
+
+  // Repo and local folder paths only drive the Cursor tools, so clients never
+  // receive them — nor the prompt builder that reads them.
+  if (cursorTools) {
+    ctx.repoUrl = project.repoUrl || (project.type === 'github' ? project.source : null);
+    ctx.localPath = project.localPath || null;
+    ctx.autoCreatePR = project.autoCreatePR !== false;
+  }
+
+  const scripts = [
+    '<script src="/js/auth-guard.js"></script>',
+    cursorTools ? '<script src="/js/cursor-prompts.js"></script>' : null,
+    '<script src="/js/review.js" defer></script>',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   const snippet = `
 <!-- Codelii Review Mode -->
 <link rel="stylesheet" href="/css/review.css">
 <script>window.__REVIEW_PROJECT__=${JSON.stringify(ctx)};</script>
-<script src="/js/auth-guard.js"></script>
-<script src="/js/cursor-prompts.js"></script>
-<script src="/js/review.js" defer></script>
+${scripts}
 `;
 
   if (html.includes('</body>')) {
@@ -100,7 +117,7 @@ function rewriteUrl(href, projectId, baseOrigin, mode) {
   }
 }
 
-export function rewriteHtml(html, project) {
+export function rewriteHtml(html, project, viewer) {
   const projectId = project.id;
   const baseOrigin = project.baseUrl || '';
   const mode = project.type === 'github' ? 'github' : 'url';
@@ -163,7 +180,7 @@ export function rewriteHtml(html, project) {
     out = baseTag + out;
   }
 
-  return injectOverlay(out, project);
+  return injectOverlay(out, project, viewer);
 }
 
 export function rewriteCss(css, project) {

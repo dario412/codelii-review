@@ -1,4 +1,12 @@
-import { getCore, getProjectStore, saveProjectStore, findProject, isMember, newId } from './lib/store.js';
+import {
+  getCore,
+  getProjectStore,
+  saveProjectStore,
+  findProject,
+  isMember,
+  isOwner,
+  newId,
+} from './lib/store.js';
 import { getUser } from './lib/auth.js';
 import { notifyCommentTagged, notifyReply } from './lib/notifications.js';
 import { json, corsOptions } from './lib/http.js';
@@ -20,9 +28,11 @@ export async function GET(request) {
   if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
 
   const store = await getProjectStore(projectId);
-  const comments = [...store.comments].sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
+  const owner = isOwner(project, user.id);
+  // Hidden comments stay in the store for the owner; everyone else never sees them.
+  const comments = store.comments
+    .filter((c) => owner || !c.hidden)
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   return json({ comments });
 }
 
@@ -129,7 +139,7 @@ export async function PATCH(request) {
   if (!user) return json({ error: 'Not authenticated' }, 401);
 
   const body = await request.json();
-  const { id, resolved, text, projectId } = body;
+  const { id, resolved, text, hidden, projectId } = body;
   if (!id || !projectId) return json({ error: 'id and projectId required' }, 400);
 
   const core = await getCore();
@@ -139,6 +149,21 @@ export async function PATCH(request) {
   const store = await getProjectStore(projectId);
   const comment = store.comments.find((c) => c.id === id);
   if (!comment) return json({ error: 'Not found' }, 404);
+
+  // Hide/unhide is owner-only — for spam / off-topic without deleting history.
+  if (typeof hidden === 'boolean') {
+    if (!isOwner(project, user.id)) {
+      return json({ error: 'Only the project owner can hide comments' }, 403);
+    }
+    comment.hidden = hidden;
+    if (hidden) {
+      comment.hiddenAt = new Date().toISOString();
+      comment.hiddenBy = user.id;
+    } else {
+      delete comment.hiddenAt;
+      delete comment.hiddenBy;
+    }
+  }
 
   if (typeof resolved === 'boolean') comment.resolved = resolved;
   if (text !== undefined) comment.text = text.trim();
@@ -165,8 +190,9 @@ export async function DELETE(request) {
   if (idx === -1) return json({ error: 'Not found' }, 404);
 
   const comment = store.comments[idx];
-  if (comment.authorId !== user.id) {
-    return json({ error: 'Only the author can delete' }, 403);
+  const allowed = comment.authorId === user.id || isOwner(project, user.id);
+  if (!allowed) {
+    return json({ error: 'Only the author or project owner can delete' }, 403);
   }
 
   store.comments.splice(idx, 1);

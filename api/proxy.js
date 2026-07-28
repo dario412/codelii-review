@@ -110,7 +110,7 @@ export async function GET(request) {
 
   if (contentType.includes('text/html')) {
     let html = buf.toString('utf8');
-    html = rewriteHtml(html, project);
+    html = rewriteHtml(html, project, user);
     return new Response(html, {
       status: upstream.status,
       headers: {

@@ -50,6 +50,41 @@ function viewUrl(project) {
   return project.type === 'github' ? `/s/${project.id}/` : `/p/${project.id}/`;
 }
 
+/** Members, pending invites and share-link state for the invite dialog. */
+function linkPanel(request, project, core, user) {
+  const owner = isOwner(project, user.id);
+
+  const members = (project.memberIds || [])
+    .map((id) => {
+      const u = core.users.find((x) => x.id === id);
+      if (!u) return null;
+      return {
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        guest: u.guest === true,
+        role: u.id === project.ownerId ? 'owner' : u.guest ? 'guest' : 'member',
+      };
+    })
+    .filter(Boolean);
+
+  const invites = owner
+    ? (project.invites || [])
+        .filter((i) => i.status === 'pending')
+        .map((i) => ({ id: i.id, email: i.email, status: i.status, createdAt: i.createdAt }))
+    : [];
+
+  return {
+    members,
+    invites,
+    linkAccess: project.linkAccess !== false,
+    linkToken: owner ? project.linkToken : null,
+    shareUrl: owner
+      ? `${siteOrigin(request)}/join.html?token=${encodeURIComponent(project.linkToken)}`
+      : null,
+  };
+}
+
 /** POST: create email invite or accept invite/link */
 export async function POST(request) {
   const user = await getUser(request);
@@ -122,9 +157,25 @@ export async function POST(request) {
     // Shareable link token
     const project = core.projects.find((p) => p.linkToken === token);
     if (!project) return json({ error: 'Invalid or expired invite' }, 404);
+    if (project.linkAccess === false) {
+      return json({ error: 'Link sharing is turned off for this project' }, 403);
+    }
     if (!project.memberIds.includes(user.id)) project.memberIds.push(user.id);
     await saveCore(core);
     return json({ project: { id: project.id, name: project.name, viewUrl: viewUrl(project) } });
+  }
+
+  if (action === 'link') {
+    const project = findProject(core, body.projectId);
+    if (!project) return json({ error: 'Project not found' }, 404);
+    if (!isOwner(project, user.id)) return json({ error: 'Only the owner can manage the link' }, 403);
+
+    if (typeof body.linkAccess === 'boolean') project.linkAccess = body.linkAccess;
+    // Regenerating mints a new token, which kills every link already shared.
+    if (body.regenerate) project.linkToken = newId();
+
+    await saveCore(core);
+    return json(linkPanel(request, project, core, user));
   }
 
   if (action === 'list') {
@@ -133,33 +184,7 @@ export async function POST(request) {
     if (!project) return json({ error: 'Project not found' }, 404);
     if (!isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
 
-    const members = (project.memberIds || [])
-      .map((id) => {
-        const u = core.users.find((x) => x.id === id);
-        if (!u) return null;
-        return {
-          id: u.id,
-          name: u.name,
-          email: u.email,
-          role: u.id === project.ownerId ? 'owner' : 'member',
-        };
-      })
-      .filter(Boolean);
-
-    const invites = isOwner(project, user.id)
-      ? (project.invites || [])
-          .filter((i) => i.status === 'pending')
-          .map((i) => ({ id: i.id, email: i.email, status: i.status, createdAt: i.createdAt }))
-      : [];
-
-    return json({
-      members,
-      invites,
-      linkToken: isOwner(project, user.id) ? project.linkToken : null,
-      shareUrl: isOwner(project, user.id)
-        ? `${siteOrigin(request)}/join.html?token=${encodeURIComponent(project.linkToken)}`
-        : null,
-    });
+    return json(linkPanel(request, project, core, user));
   }
 
   return json({ error: 'Unknown action' }, 400);

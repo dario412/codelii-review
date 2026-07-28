@@ -12,6 +12,8 @@ import {
 import { getUser } from './lib/auth.js';
 import { json, corsOptions } from './lib/http.js';
 import { ingestGitHubRepo, parseGitHubUrl } from './lib/github.js';
+import { isStripeConfigured } from './lib/stripe.js';
+import { canCreateProjects, blockedReason, syncFromStripe } from './lib/billing.js';
 
 function detectSource(input) {
   const raw = (input || '').trim();
@@ -74,6 +76,31 @@ export async function POST(request) {
   if (!user) return json({ error: 'Not authenticated' }, 401);
 
   try {
+    const core = await getCore();
+    const account = core.users.find((u) => u.id === user.id);
+    if (!account) return json({ error: 'Account not found' }, 401);
+
+    if (account.guest) {
+      return json(
+        { error: 'Guests joined through a share link cannot create projects. Sign up for an account first.' },
+        403
+      );
+    }
+
+    // Paywall. Creating your own project is the paid action; being invited to
+    // someone else's is free, which is why this check lives here and not in
+    // GET, /api/comments or the viewer.
+    if (isStripeConfigured() && !canCreateProjects(account)) {
+      // The webhook may still be in flight right after checkout, so confirm
+      // against Stripe before turning a paying customer away.
+      const changed = await syncFromStripe(account).catch(() => false);
+      if (changed) await saveCore(core);
+
+      if (!canCreateProjects(account)) {
+        return json({ error: blockedReason(account), needsSubscription: true }, 402);
+      }
+    }
+
     const body = await request.json();
     const name = (body.name || '').trim();
     const detected = detectSource(body.source || body.url || body.repo);
@@ -105,11 +132,11 @@ export async function POST(request) {
       memberIds: [user.id],
       invites: [],
       linkToken: newId(),
+      linkAccess: true,
       status: detected.type === 'github' ? 'ingesting' : 'ready',
       createdAt: new Date().toISOString(),
     };
 
-    const core = await getCore();
     core.projects.push(project);
     await saveCore(core);
     await saveProjectStore(project.id, { comments: [], notifications: [], presence: {} });

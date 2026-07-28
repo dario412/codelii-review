@@ -70,7 +70,7 @@ export async function GET(request) {
   if (contentType.includes('text/html')) {
     let html = file.buffer.toString('utf8');
     // For snapshots, inject overlay; light rewrite so relative assets stay under /s/
-    html = rewriteHtml(html, { ...project, baseUrl: `https://snapshot.local` });
+    html = rewriteHtml(html, { ...project, baseUrl: `https://snapshot.local` }, user);
     return new Response(html, {
       status: 200,
       headers: {

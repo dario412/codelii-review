@@ -9,63 +9,84 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/app.css">
 <script src="/js/auth-guard.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <div class="auth-page">
   <div class="auth-card">
     <div class="auth-dot"></div>
     <div class="brand">Codelii<span> Review</span></div>
-    <h1>Join project</h1>
-    <p class="sub" id="join-sub">Checking invite…</p>
+    <h1 id="join-title">Join project</h1>
+    <p class="sub" id="join-sub">Checking link…</p>
+
     <div class="error-box" id="join-error"></div>
+
+    <!-- Guest gate: shown for share links when nobody is signed in -->
+    <form id="guest-form" hidden>
+      <div class="field">
+        <label for="guest-name">Your name</label>
+        <input type="text" id="guest-name" placeholder="Jane Smith" autocomplete="name" required>
+      </div>
+      <div class="field">
+        <label for="guest-email">Email</label>
+        <input type="email" id="guest-email" placeholder="jane@company.com" autocomplete="email" required>
+        <p class="field-hint">We use this to label your comments and notify you about replies.</p>
+      </div>
+      <button type="submit" class="btn btn-accent" style="width:100%;margin-top:6px" id="guest-btn">
+        Continue to project
+      </button>
+    </form>
+
+    <div id="google-section" hidden>
+      <div class="divider">or</div>
+      <div class="google-wrap" id="google-btn"></div>
+      <p class="auth-note" id="google-note" hidden>Google sign-in appears when GOOGLE_CLIENT_ID is configured.</p>
+    </div>
+
+    <!-- Single-button state: already signed in, or an email invite -->
     <button class="btn btn-accent" style="width:100%" id="join-btn" hidden>Accept invite</button>
-    <p class="auth-note"><a href="/dashboard.html" style="color:var(--brand-accent)">Back to dashboard</a></p>
+
+    <p class="auth-note" id="join-foot" hidden></p>
   </div>
 </div>
+
 <script>
 (function () {
   const params = new URLSearchParams(location.search);
   const token = params.get('token');
+
+  const title = document.getElementById('join-title');
   const sub = document.getElementById('join-sub');
   const err = document.getElementById('join-error');
   const btn = document.getElementById('join-btn');
+  const guestForm = document.getElementById('guest-form');
+  const guestBtn = document.getElementById('guest-btn');
+  const googleSection = document.getElementById('google-section');
+  const foot = document.getElementById('join-foot');
+
+  function showError(message) {
+    err.textContent = message;
+    err.classList.add('show');
+  }
+
+  function clearError() {
+    err.classList.remove('show');
+  }
+
+  function signInHref() {
+    return `/login.html?redirect=${encodeURIComponent(`/join.html?token=${encodeURIComponent(token)}`)}`;
+  }
 
   if (!token) {
-    sub.textContent = 'This invite link is missing a token.';
+    sub.textContent = 'This invite link is missing its token.';
     return;
   }
 
-  if (!ReviewAuth.isLoggedIn()) {
-    const redirect = encodeURIComponent(`/join.html?token=${encodeURIComponent(token)}`);
-    location.replace(`/login.html?redirect=${redirect}`);
-    return;
-  }
+  /* ---------- signed-in path: accept and go ---------- */
 
-  async function preview() {
-    const res = await fetch(`/api/invites?token=${encodeURIComponent(token)}`, {
-      headers: ReviewAuth.headers(),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      sub.textContent = 'Invite not found.';
-      err.textContent = data.error || 'Invalid invite';
-      err.classList.add('show');
-      return;
-    }
-    if (data.status === 'accepted') {
-      sub.textContent = `You’re already in “${data.projectName}”.`;
-      btn.hidden = false;
-      btn.textContent = 'Open dashboard';
-      btn.onclick = () => (location.href = '/dashboard.html');
-      return;
-    }
-    sub.textContent = `You’ve been invited to “${data.projectName}”.`;
-    btn.hidden = false;
-    btn.onclick = accept;
-  }
-
-  async function accept() {
+  async function acceptAsMember() {
     btn.disabled = true;
+    const label = btn.textContent;
     btn.textContent = 'Joining…';
     try {
       const res = await fetch('/api/invites', {
@@ -77,16 +98,176 @@
       if (!res.ok) throw new Error(data.error || 'Could not accept invite');
       location.href = data.project?.viewUrl || '/dashboard.html';
     } catch (e) {
-      err.textContent = e.message;
-      err.classList.add('show');
+      showError(e.message);
       btn.disabled = false;
-      btn.textContent = 'Accept invite';
+      btn.textContent = label;
     }
   }
 
-  preview().catch((e) => {
-    err.textContent = e.message;
-    err.classList.add('show');
+  async function signedInFlow() {
+    const res = await fetch(`/api/invites?token=${encodeURIComponent(token)}`, {
+      headers: ReviewAuth.headers(),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      sub.textContent = 'We couldn’t open this link.';
+      showError(data.error || 'Invalid invite');
+      return;
+    }
+    if (data.status === 'accepted') {
+      sub.textContent = `You’re already in “${data.projectName}”.`;
+      btn.hidden = false;
+      btn.textContent = 'Open dashboard';
+      btn.onclick = () => (location.href = '/dashboard.html');
+      return;
+    }
+    sub.textContent = `You’ve been invited to “${data.projectName}”.`;
+    btn.hidden = false;
+    btn.onclick = acceptAsMember;
+  }
+
+  /* ---------- guest path: name + email, or Google ---------- */
+
+  function showGuestGate(projectName) {
+    title.textContent = 'Join the review';
+    sub.textContent = `You’ve been invited to comment on “${projectName}”. Tell us who you are so your feedback is attributed.`;
+    guestForm.hidden = false;
+    googleSection.hidden = false;
+    foot.hidden = false;
+    foot.innerHTML = `Already have an account? <a href="${signInHref()}" style="color:var(--brand-accent)">Sign in instead</a>`;
+    document.getElementById('guest-name').focus();
+    initGoogle();
+  }
+
+  guestForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    clearError();
+    guestBtn.disabled = true;
+    guestBtn.textContent = 'Joining…';
+    try {
+      const res = await fetch('/api/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          name: document.getElementById('guest-name').value.trim(),
+          email: document.getElementById('guest-email').value.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.needsSignIn) {
+          showError(data.error);
+          foot.innerHTML = `<a href="${signInHref()}" style="color:var(--brand-accent)">Sign in to continue →</a>`;
+          return;
+        }
+        throw new Error(data.error || 'Could not join');
+      }
+      ReviewAuth.setSession(data.token, data.user);
+      location.href = data.project?.viewUrl || '/dashboard.html';
+    } catch (e2) {
+      showError(e2.message);
+    } finally {
+      guestBtn.disabled = false;
+      guestBtn.textContent = 'Continue to project';
+    }
+  });
+
+  // Google returns a real account, so join through the normal member path.
+  window.__onGoogleCredential = async (response) => {
+    clearError();
+    try {
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credential: response.credential }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Google sign-in failed');
+      ReviewAuth.setSession(data.token, data.user);
+
+      const join = await fetch('/api/invites', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'accept', token }),
+      });
+      const joined = await join.json();
+      if (!join.ok) throw new Error(joined.error || 'Could not join project');
+      location.href = joined.project?.viewUrl || '/dashboard.html';
+    } catch (e) {
+      showError(e.message);
+    }
+  };
+
+  async function initGoogle() {
+    try {
+      const res = await fetch('/api/auth/config');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.googleClientId) {
+        document.getElementById('google-note').hidden = false;
+        return;
+      }
+      const start = () => {
+        if (!window.google?.accounts?.id) {
+          setTimeout(start, 100);
+          return;
+        }
+        google.accounts.id.initialize({
+          client_id: data.googleClientId,
+          callback: window.__onGoogleCredential,
+        });
+        google.accounts.id.renderButton(document.getElementById('google-btn'), {
+          theme: 'outline',
+          size: 'large',
+          width: 360,
+          text: 'continue_with',
+        });
+      };
+      start();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  /* ---------- decide which gate to show ---------- */
+
+  async function start() {
+    if (ReviewAuth.isLoggedIn()) {
+      await signedInFlow();
+      return;
+    }
+
+    const res = await fetch(`/api/share?token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      sub.textContent = 'We couldn’t open this link.';
+      showError(data.error || 'This link is not valid');
+      return;
+    }
+
+    if (data.type === 'link' && data.allowed) {
+      showGuestGate(data.projectName);
+      return;
+    }
+
+    if (data.type === 'link') {
+      title.textContent = 'Link disabled';
+      sub.textContent = 'The owner turned off link sharing for this project. Ask them for an email invite.';
+      return;
+    }
+
+    // Email invites stay restricted to their recipient.
+    sub.textContent = 'This invite is tied to an email address. Sign in to accept it.';
+    btn.hidden = false;
+    btn.textContent = 'Sign in to continue';
+    btn.onclick = () => (location.href = signInHref());
+  }
+
+  start().catch((e) => {
+    sub.textContent = 'Something went wrong opening this link.';
+    showError(e.message);
   });
 })();
 </script>

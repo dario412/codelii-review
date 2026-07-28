@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "node scripts/local-server.js",
+    "stripe:setup": "node scripts/stripe-setup.js",
     "deploy": "vercel --prod"
   },
   "dependencies": {
@@ -15,7 +16,8 @@
     "@vercel/blob": "^2.6.1",
     "@vercel/oidc": "^3.8.0",
     "jose": "^5.9.6",
-    "resend": "^4.0.1"
+    "resend": "^4.0.1",
+    "stripe": "^22.3.2"
   },
   "devDependencies": {
     "vercel": "^39.0.0"

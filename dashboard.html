@@ -20,6 +20,12 @@
 </header>
 
 <main class="dash-wrap">
+  <div class="billing-banner" id="billing-banner">
+    <span data-icon="warning" data-icon-size="18"></span>
+    <p id="billing-banner-text"></p>
+    <button class="btn btn-sm" type="button" id="billing-banner-action"><span data-label>Manage billing</span></button>
+  </div>
+
   <div class="dash-header">
     <div>
       <h1>Projects</h1>
@@ -68,6 +74,47 @@
     <p>Nothing here matches your search. Try a different name or URL.</p>
   </div>
 </main>
+
+<!-- Trial / subscription modal -->
+<div class="modal-backdrop" id="modal-trial">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="trial-title">
+    <div class="modal-head">
+      <div class="modal-glyph" data-icon="countdown" data-icon-size="20"></div>
+      <div class="titles">
+        <h2 id="trial-title">Start your free trial</h2>
+        <p class="sub" id="trial-sub">Creating your own projects is the paid part. Reviewing projects you were invited to is always free.</p>
+      </div>
+      <button class="btn btn-icon" data-close="modal-trial" data-icon="close" data-icon-size="16" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      <div class="error-box" id="trial-error"></div>
+
+      <div class="plan-card">
+        <div class="plan-price">
+          <span class="amount">$49</span>
+          <span class="per">per month</span>
+        </div>
+        <p class="plan-note" id="trial-note"></p>
+      </div>
+
+      <ul class="plan-list">
+        <li><span data-icon="check" data-icon-size="15"></span>Unlimited projects — live URLs or GitHub repos</li>
+        <li><span data-icon="check" data-icon-size="15"></span>Unlimited collaborators, free for everyone you invite</li>
+        <li><span data-icon="check" data-icon-size="15"></span>Comments pinned to the page, turned into Cursor fixes</li>
+        <li><span data-icon="check" data-icon-size="15"></span>Cancel any time from the billing portal</li>
+      </ul>
+
+      <p class="plan-secure">
+        <span data-icon="card" data-icon-size="15"></span>
+        Payment is handled entirely by Stripe. Your card details never reach our servers.
+      </p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" data-close="modal-trial">Not now</button>
+      <button class="btn btn-accent" type="button" id="trial-start"><span data-label>Start free trial</span></button>
+    </div>
+  </div>
+</div>
 
 <!-- New project modal -->
 <div class="modal-backdrop" id="modal-new">
@@ -149,9 +196,10 @@
       </div>
       <div class="field check-field">
         <label class="check-label">
-          <input type="checkbox" id="settings-auto-pr" checked>
-          <span>Open a PR when the cloud agent finishes</span>
+          <input type="checkbox" id="settings-auto-pr" checked disabled>
+          <span>Cloud fixes always open a pull request</span>
         </label>
+        <p class="field-hint">Direct push to main is disabled. Review the PR diff, then merge — or close the PR to undo.</p>
       </div>
     </div>
     <div class="modal-actions">
@@ -176,6 +224,7 @@
       <div class="error-box" id="invite-error"></div>
 
       <span class="modal-section-label">Invite by email</span>
+      <p class="section-hint">Only that address can accept — the invite is sent straight to their inbox.</p>
       <div class="share-row">
         <input id="invite-email" type="email" placeholder="teammate@company.com">
         <button class="btn btn-accent" type="button" id="invite-send" data-icon="mail" data-icon-size="16">
@@ -183,12 +232,25 @@
         </button>
       </div>
 
-      <span class="modal-section-label">Shareable link</span>
-      <div class="share-row">
+      <div class="modal-section-row">
+        <span class="modal-section-label">Anyone with the link</span>
+        <label class="switch">
+          <input type="checkbox" id="link-access" aria-label="Allow anyone with the link to join">
+          <span class="switch-track"></span>
+        </label>
+      </div>
+      <p class="section-hint" id="link-hint">
+        Anyone who opens this link can enter their name and email, then comment. No account needed.
+      </p>
+      <div class="share-row" id="share-row">
         <input id="share-url" readonly aria-label="Shareable link">
         <button class="btn" type="button" id="share-copy" data-icon="copy" data-icon-size="16">
           <span data-label>Copy</span>
         </button>
+        <button class="btn btn-icon tip tip-end" type="button" id="share-regen"
+                data-icon="refresh" data-icon-size="16"
+                data-tip="Generate a new link and kill the old one"
+                aria-label="Generate a new link"></button>
       </div>
 
       <span class="modal-section-label">People with access</span>
@@ -210,9 +272,17 @@
   });
 
   const user = ReviewAuth.getUser();
+  // Guests arrive through a share link; they only ever see the project they joined.
+  const isGuest = user?.guest === true;
   let inviteProjectId = null;
   let settingsProjectId = null;
   let projects = { owned: [], invited: [] };
+
+  // Mirrors /api/billing. Advisory only — the server re-checks entitlement on
+  // every project create, so nothing here is a security boundary.
+  let billing = { configured: false, entitled: true, status: 'none', trialDays: 7 };
+
+  const DRAFT_KEY = 'review_project_draft';
 
   function initials(n) {
     return (n || '?').split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
@@ -251,6 +321,15 @@
   }
 
   /* --- user chip --- */
+  const billingChip = document.createElement('button');
+  billingChip.type = 'button';
+  billingChip.className = 'billing-chip';
+  billingChip.hidden = true;
+  // A live subscription (even a failing one) is managed in Stripe's portal;
+  // anything else needs a new checkout, which the portal cannot start.
+  const LIVE = ['trialing', 'active', 'past_due', 'unpaid', 'incomplete'];
+  billingChip.onclick = () => (LIVE.includes(billing.status) ? openPortal() : openTrial());
+
   (function renderUserChip() {
     const chip = document.getElementById('user-chip');
     const who = document.createElement('div');
@@ -269,9 +348,241 @@
 
     chip.append(
       who,
+      billingChip,
       iconButton('signOut', 'Sign out', () => ReviewAuth.logout(), 'tip-below'),
     );
   })();
+
+  /* --- billing --- */
+  function formatDate(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+    });
+  }
+
+  function daysLeft(iso) {
+    if (!iso) return 0;
+    return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000));
+  }
+
+  function chipContent(icon, text) {
+    billingChip.innerHTML = Icons.svg(icon, 15);
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = text;
+    billingChip.appendChild(label);
+  }
+
+  function paintBilling() {
+    const banner = document.getElementById('billing-banner');
+    const bannerText = document.getElementById('billing-banner-text');
+    const bannerAction = document.getElementById('billing-banner-action');
+
+    if (isGuest || !billing.configured) {
+      billingChip.hidden = true;
+      banner.classList.remove('show');
+      return;
+    }
+
+    billingChip.className = 'billing-chip';
+    billingChip.hidden = false;
+    banner.classList.remove('show');
+
+    switch (billing.status) {
+      case 'trialing': {
+        const left = daysLeft(billing.trialEnd);
+        billingChip.classList.add('trial');
+        chipContent('countdown', left === 1 ? 'Trial · 1 day left' : `Trial · ${left} days left`);
+        billingChip.title = `Free until ${formatDate(billing.trialEnd)}, then $49/month. Click to manage billing.`;
+        break;
+      }
+      case 'active':
+        chipContent(
+          'card',
+          billing.cancelAtPeriodEnd ? `Ends ${formatDate(billing.renewsAt)}` : `$49/mo`,
+        );
+        billingChip.title = billing.cancelAtPeriodEnd
+          ? `Your subscription ends on ${formatDate(billing.renewsAt)}.`
+          : `Renews ${formatDate(billing.renewsAt)}. Click to manage billing.`;
+        break;
+      case 'past_due':
+      case 'unpaid':
+      case 'incomplete':
+        billingChip.classList.add('alert');
+        chipContent('warning', 'Payment failed');
+        billingChip.title = billing.reason || '';
+        bannerText.textContent = billing.reason
+          || 'Your last payment failed. Update your payment method to keep creating projects.';
+        setLabel(bannerAction, 'Update payment method');
+        bannerAction.onclick = openPortal;
+        banner.classList.add('show');
+        break;
+      case 'canceled':
+      case 'incomplete_expired':
+      case 'paused':
+        chipContent('card', 'Subscribe');
+        billingChip.title = billing.reason || '';
+        if ((projects.owned || []).length) {
+          bannerText.textContent =
+            'Your subscription has ended. Your existing projects stay available — resubscribe to create new ones.';
+          setLabel(bannerAction, 'Resubscribe');
+          bannerAction.onclick = () => openTrial();
+          banner.classList.add('show');
+        }
+        break;
+      default:
+        // Never subscribed: the New project button is the entry point, so the
+        // header stays quiet unless Stripe already knows this person.
+        billingChip.hidden = !billing.hasCustomer;
+        chipContent('card', 'Billing');
+    }
+  }
+
+  async function refreshBilling(query = '') {
+    if (isGuest) return;
+    try {
+      const res = await fetch(`/api/billing${query}`, { headers: ReviewAuth.headers() });
+      if (!res.ok && res.status !== 403) return;
+      const data = await res.json();
+      if (data.billing) billing = { configured: data.configured !== false, ...data.billing };
+      paintBilling();
+    } catch {
+      /* billing is advisory in the UI; a failure here must not break the page */
+    }
+  }
+
+  function saveDraft() {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify({
+      name: document.getElementById('proj-name').value,
+      source: document.getElementById('proj-source').value,
+      hasSource: document.getElementById('proj-has-source').checked,
+    }));
+  }
+
+  function takeDraft() {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    sessionStorage.removeItem(DRAFT_KEY);
+    try {
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function openTrial(message) {
+    const err = document.getElementById('trial-error');
+    err.classList.toggle('show', Boolean(message));
+    if (message) err.textContent = message;
+
+    const days = billing.trialDays || 7;
+    const first = new Date(Date.now() + days * 86400000);
+    const title = document.getElementById('trial-title');
+    const note = document.getElementById('trial-note');
+    const btn = document.getElementById('trial-start');
+
+    if (billing.trialAvailable === false) {
+      title.textContent = 'Resubscribe to create projects';
+      note.innerHTML = 'You have already used your free trial, so your subscription starts today. '
+        + '<strong>$49</strong> is charged now and on the same date every month.';
+      setLabel(btn, 'Subscribe — $49/month');
+    } else {
+      title.textContent = `Start your ${days}-day free trial`;
+      note.innerHTML = `Free for ${days} days. Your card is saved now but nothing is charged until `
+        + `<strong>${formatDate(first.toISOString())}</strong> — then $49 on the same date every month. `
+        + 'Cancel before then and you pay nothing.';
+      setLabel(btn, `Start ${days}-day free trial`);
+    }
+
+    openModal('modal-trial');
+  }
+
+  document.getElementById('trial-start').onclick = async () => {
+    const err = document.getElementById('trial-error');
+    err.classList.remove('show');
+    const btn = document.getElementById('trial-start');
+    const original = btn.querySelector('[data-label]').textContent;
+    btn.disabled = true;
+    setLabel(btn, 'Opening Stripe…');
+    try {
+      const res = await fetch('/api/billing', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'checkout' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not start checkout');
+
+      if (data.alreadyActive) {
+        billing = { configured: true, ...data.billing };
+        paintBilling();
+        closeModal('modal-trial');
+        openNew();
+        return;
+      }
+      if (!data.url) throw new Error('Stripe did not return a checkout URL');
+      window.location.href = data.url;
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add('show');
+      btn.disabled = false;
+      setLabel(btn, original);
+    }
+  };
+
+  async function openPortal() {
+    try {
+      const res = await fetch('/api/billing', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'portal' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || 'Could not open the billing portal');
+      window.location.href = data.url;
+    } catch (e) {
+      alert(e.message);
+    }
+  }
+
+  /**
+   * Coming back from Stripe. The webhook is authoritative but may still be in
+   * flight, so the session id is handed to the server for a verified sync.
+   */
+  async function settleCheckoutReturn() {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get('billing');
+    if (!outcome) return;
+
+    const sessionId = params.get('session_id');
+    window.history.replaceState({}, '', window.location.pathname);
+
+    if (outcome === 'success' && sessionId) {
+      await refreshBilling(`?session_id=${encodeURIComponent(sessionId)}`);
+      // Stripe can lag by a beat; give it one retry before giving up.
+      if (!billing.entitled) {
+        await new Promise((r) => setTimeout(r, 1500));
+        await refreshBilling();
+      }
+      if (billing.entitled) {
+        const draft = takeDraft();
+        openNew();
+        if (draft) {
+          document.getElementById('proj-name').value = draft.name || '';
+          document.getElementById('proj-source').value = draft.source || '';
+          document.getElementById('proj-has-source').checked = Boolean(draft.hasSource);
+        }
+      }
+      return;
+    }
+
+    if (outcome === 'cancelled') {
+      takeDraft();
+      return;
+    }
+
+    await refreshBilling();
+  }
 
   /* --- project cards --- */
   function card(project, owned) {
@@ -392,7 +703,7 @@
     document.getElementById('owned-empty').hidden = searching || owned.length > 0;
     document.getElementById('search-empty').hidden = !searching || visible > 0;
     document.getElementById('section-owned').hidden =
-      searching && !document.querySelector('#owned-grid .project-card:not([hidden])');
+      isGuest || (searching && !document.querySelector('#owned-grid .project-card:not([hidden])'));
     document.getElementById('section-invited').hidden = invited.length === 0
       || (searching && !document.querySelector('#invited-grid .project-card:not([hidden])'));
   }
@@ -422,7 +733,7 @@
     btn.onclick = () => closeModal(btn.dataset.close);
   });
 
-  ['modal-new', 'modal-invite', 'modal-settings'].forEach((id) => {
+  ['modal-new', 'modal-invite', 'modal-settings', 'modal-trial'].forEach((id) => {
     document.getElementById(id).addEventListener('click', (e) => {
       if (e.target.id === id) closeModal(id);
     });
@@ -435,6 +746,12 @@
 
   /* --- create --- */
   function openNew() {
+    // Paying is what unlocks creating your own project. The server enforces
+    // this too — this check just avoids a pointless round trip.
+    if (billing.configured && !billing.entitled) {
+      openTrial();
+      return;
+    }
     document.getElementById('new-error').classList.remove('show');
     document.getElementById('proj-name').value = '';
     document.getElementById('proj-source').value = '';
@@ -444,6 +761,8 @@
 
   document.getElementById('btn-new').onclick = openNew;
   document.getElementById('empty-new').onclick = openNew;
+
+  if (isGuest) document.getElementById('btn-new').hidden = true;
   document.getElementById('project-search').addEventListener('input', applyFilter);
 
   document.getElementById('proj-source').addEventListener('input', (e) => {
@@ -469,6 +788,15 @@
         }),
       });
       const data = await res.json();
+      // 402: the server says this account is not entitled. Keep what they typed
+      // and hand them to Stripe rather than losing the form.
+      if (res.status === 402) {
+        saveDraft();
+        closeModal('modal-new');
+        await refreshBilling();
+        openTrial(data.error);
+        return;
+      }
       if (!res.ok) throw new Error(data.error || 'Failed to create');
       closeModal('modal-new');
       await load();
@@ -513,7 +841,7 @@
           repoUrl: document.getElementById('settings-repo-url').value.trim(),
           repoRef: document.getElementById('settings-repo-ref').value.trim() || 'main',
           localPath: document.getElementById('settings-local-path').value.trim(),
-          autoCreatePR: document.getElementById('settings-auto-pr').checked,
+          autoCreatePR: true,
         }),
       });
       const data = await res.json();
@@ -588,11 +916,23 @@
     }
 
     const chip = document.createElement('span');
-    chip.className = `role-chip${pending ? ' pending' : ''}`;
+    const variant = pending ? ' pending' : role === 'guest' ? ' guest' : '';
+    chip.className = `role-chip${variant}`;
     chip.textContent = pending ? 'Pending' : role || 'member';
 
     row.append(avatar, who, chip);
     return row;
+  }
+
+  function paintLinkState(data) {
+    const on = data.linkAccess !== false;
+    document.getElementById('link-access').checked = on;
+    document.getElementById('share-row').classList.toggle('is-off', !on);
+    document.getElementById('share-url').value = on ? data.shareUrl || '' : '';
+    document.getElementById('share-url').placeholder = on ? '' : 'Link sharing is off';
+    document.getElementById('link-hint').textContent = on
+      ? 'Anyone who opens this link can enter their name and email, then comment. No account needed.'
+      : 'The link is disabled. Only people you invite by email can open this project.';
   }
 
   async function refreshInvitePanel() {
@@ -607,12 +947,39 @@
       document.getElementById('invite-error').classList.add('show');
       return;
     }
-    document.getElementById('share-url').value = data.shareUrl || '';
+    paintLinkState(data);
     const list = document.getElementById('invite-list');
     list.innerHTML = '';
     (data.members || []).forEach((m) => list.appendChild(inviteRow(m)));
     (data.invites || []).forEach((i) => list.appendChild(inviteRow({ email: i.email, pending: true })));
   }
+
+  async function updateLink(patch) {
+    const err = document.getElementById('invite-error');
+    err.classList.remove('show');
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'link', projectId: inviteProjectId, ...patch }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not update the link');
+      paintLinkState(data);
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add('show');
+      await refreshInvitePanel();
+    }
+  }
+
+  document.getElementById('link-access').onchange = (e) =>
+    updateLink({ linkAccess: e.target.checked });
+
+  document.getElementById('share-regen').onclick = async () => {
+    if (!confirm('Generate a new link? Anyone using the current link will lose access.')) return;
+    await updateLink({ regenerate: true, linkAccess: true });
+  };
 
   document.getElementById('share-copy').onclick = async () => {
     const btn = document.getElementById('share-copy');
@@ -651,7 +1018,10 @@
   };
 
   showSkeletons();
-  load().catch((e) => alert(e.message));
+  load()
+    .then(refreshBilling)
+    .then(settleCheckoutReturn)
+    .catch((e) => alert(e.message));
 })();
 </script>
 </body>

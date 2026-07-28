@@ -11,6 +11,12 @@
   "functions": {
     "api/cursor-fix.js": {
       "maxDuration": 60
+    },
+    "api/stripe-webhook.js": {
+      "maxDuration": 30
+    },
+    "api/billing.js": {
+      "maxDuration": 30
     }
   },
   "headers": [
