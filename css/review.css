@@ -325,6 +325,99 @@ body.review-sidebar-open {
   border-radius: 999px;
 }
 
+.review-sidebar-prompts {
+  padding: 10px 12px 0;
+}
+
+.review-btn-prompt {
+  width: 100%;
+  justify-content: center;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-color: rgba(184, 255, 84, 0.35);
+  color: var(--brand-accent);
+  background: rgba(184, 255, 84, 0.08);
+}
+
+.review-btn-fix {
+  width: 100%;
+  justify-content: center;
+  font-size: 12px;
+  padding: 8px 12px;
+  margin-top: 6px;
+  border-color: rgba(184, 255, 84, 0.55);
+  color: var(--brand-bg);
+  background: var(--brand-accent);
+}
+
+.review-btn-fix:hover:not(:disabled) {
+  background: var(--brand-accent-hover);
+}
+
+.review-btn-fix:disabled,
+.review-btn-prompt:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.review-btn-prompt:hover:not(:disabled) {
+  background: rgba(184, 255, 84, 0.16);
+}
+
+.review-btn-prompt.copied,
+.review-btn-fix.copied,
+.review-sidebar-prompt-btn.copied,
+.review-sidebar-fix-btn.copied,
+.review-btn-prompt-inline.copied,
+.review-btn-fix-inline.copied {
+  color: var(--brand-bg);
+  background: var(--brand-accent);
+  border-color: var(--brand-accent);
+}
+
+.review-sidebar-prompt-btn,
+.review-sidebar-fix-btn,
+.review-btn-prompt-inline,
+.review-btn-fix-inline {
+  margin-top: 8px;
+  margin-right: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 255, 84, 0.35);
+  background: rgba(184, 255, 84, 0.08);
+  color: var(--brand-accent);
+  font-family: var(--review-font);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.review-sidebar-fix-btn,
+.review-btn-fix-inline {
+  border-color: rgba(184, 255, 84, 0.55);
+  background: var(--brand-accent);
+  color: var(--brand-bg);
+}
+
+.review-sidebar-prompt-btn:hover,
+.review-btn-prompt-inline:hover {
+  background: rgba(184, 255, 84, 0.16);
+}
+
+.review-sidebar-fix-btn:hover,
+.review-btn-fix-inline:hover {
+  background: var(--brand-accent-hover);
+}
+
+.review-prompt-toast {
+  background: var(--brand-accent) !important;
+  color: var(--brand-bg) !important;
+  font-weight: 700;
+}
+
 .review-sidebar-tabs {
   display: flex;
   gap: 6px;

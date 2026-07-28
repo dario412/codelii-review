@@ -88,6 +88,11 @@ export async function POST(request) {
       }
     }
 
+    const hasSource =
+      typeof body.hasSource === 'boolean'
+        ? body.hasSource
+        : detected.type === 'github';
+
     const project = {
       id: newId(),
       name: projectName,
@@ -95,6 +100,7 @@ export async function POST(request) {
       source: detected.type === 'github' ? detected.source : detected.origin,
       baseUrl: detected.type === 'url' ? detected.origin : null,
       startPath: detected.type === 'url' ? detected.startPath : '/',
+      hasSource,
       ownerId: user.id,
       memberIds: [user.id],
       invites: [],
@@ -159,6 +165,35 @@ export async function PATCH(request) {
   if (typeof body.name === 'string' && body.name.trim()) {
     if (!isOwner(project, user.id)) return json({ error: 'Only the owner can rename' }, 403);
     project.name = body.name.trim();
+  }
+
+  if (typeof body.hasSource === 'boolean') {
+    if (!isOwner(project, user.id)) return json({ error: 'Only the owner can change settings' }, 403);
+    project.hasSource = body.hasSource;
+  }
+
+  if (typeof body.repoUrl === 'string') {
+    if (!isOwner(project, user.id)) return json({ error: 'Only the owner can change settings' }, 403);
+    const url = body.repoUrl.trim();
+    project.repoUrl = url || null;
+    if (url) project.hasSource = true;
+  }
+
+  if (typeof body.repoRef === 'string') {
+    if (!isOwner(project, user.id)) return json({ error: 'Only the owner can change settings' }, 403);
+    project.repoRef = body.repoRef.trim() || 'main';
+  }
+
+  if (typeof body.localPath === 'string') {
+    if (!isOwner(project, user.id)) return json({ error: 'Only the owner can change settings' }, 403);
+    const path = body.localPath.trim();
+    project.localPath = path || null;
+    if (path) project.hasSource = true;
+  }
+
+  if (typeof body.autoCreatePR === 'boolean') {
+    if (!isOwner(project, user.id)) return json({ error: 'Only the owner can change settings' }, 403);
+    project.autoCreatePR = body.autoCreatePR;
   }
 
   if (body.regenerateLink) {

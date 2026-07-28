@@ -27,3 +27,13 @@ Copy `.env.example` to `.env.local` (and set the same on Vercel):
 2. Dashboard → **My projects** / **Invited**
 3. New project → live URL (proxied at `/p/:id/…`) or GitHub repo (snapshot at `/s/:id/…`)
 4. Invite by email or shareable link (`/join.html?token=…`)
+5. In review: **Cursor prompt** (copy) or **Fix with Cursor** (starts a Cursor SDK cloud/local agent)
+
+## Cursor SDK (Fix with Cursor)
+
+1. Create an API key at [Cursor Dashboard → Integrations](https://cursor.com/dashboard/integrations)
+2. Add to `.env.local` / Vercel: `CURSOR_API_KEY=…`
+3. For a project, set **GitHub repo URL** in Settings (auto for GitHub projects), or a **local folder path** for local agents
+4. In the review sidebar, click **Fix** / **Fix with Cursor**
+
+Cloud agents clone the repo and can open a PR. Watch them in Cursor → Filter → Source → SDK.

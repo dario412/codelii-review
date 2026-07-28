@@ -270,6 +270,28 @@
         el('h2', {}, ['Comments']),
         el('span', { class: 'review-sidebar-count', id: 'review-count' }, ['0']),
       ]),
+      el('div', { class: 'review-sidebar-prompts', id: 'review-sidebar-prompts' }, [
+        el('button', {
+          type: 'button',
+          class: 'review-btn review-btn-prompt',
+          id: 'review-copy-all-prompts',
+          title: 'Copy Cursor prompts for all open comments',
+          onclick: (e) => {
+            e.stopPropagation();
+            copyAllOpenPrompts();
+          },
+        }, ['Copy all as Cursor prompts']),
+        el('button', {
+          type: 'button',
+          class: 'review-btn review-btn-fix',
+          id: 'review-fix-all',
+          title: 'Start a Cursor agent for all open comments',
+          onclick: (e) => {
+            e.stopPropagation();
+            fixAllOpenWithCursor(e.currentTarget);
+          },
+        }, ['Fix all with Cursor']),
+      ]),
       el('div', { class: 'review-sidebar-tabs', id: 'review-sidebar-tabs' }, [
         el('button', {
           type: 'button',
@@ -1175,6 +1197,24 @@
         }, ['↩ Reply']),
         el('button', {
           type: 'button',
+          class: 'review-btn-prompt-inline',
+          title: 'Copy a Cursor-ready prompt for this comment',
+          onclick: (e) => {
+            e.stopPropagation();
+            copyCommentPrompt(fresh, e.currentTarget);
+          },
+        }, ['Cursor prompt']),
+        el('button', {
+          type: 'button',
+          class: 'review-btn-fix-inline',
+          title: 'Start a Cursor agent to implement this comment',
+          onclick: (e) => {
+            e.stopPropagation();
+            fixCommentWithCursor(fresh, e.currentTarget);
+          },
+        }, ['Fix with Cursor']),
+        el('button', {
+          type: 'button',
           onclick: () => toggleResolved(fresh),
         }, [fresh.resolved ? 'Reopen' : '✓ Resolve']),
         fresh.authorId === ReviewAuth.getUser()?.id
@@ -1184,6 +1224,24 @@
     } else {
       bubble.appendChild(replyFormWrap);
       bubble.appendChild(el('div', { class: 'review-bubble-resolve' }, [
+        el('button', {
+          type: 'button',
+          class: 'review-btn-prompt-inline',
+          title: 'Copy a Cursor-ready prompt for this comment',
+          onclick: (e) => {
+            e.stopPropagation();
+            copyCommentPrompt(fresh, e.currentTarget);
+          },
+        }, ['Cursor prompt']),
+        el('button', {
+          type: 'button',
+          class: 'review-btn-fix-inline',
+          title: 'Start a Cursor agent to implement this comment',
+          onclick: (e) => {
+            e.stopPropagation();
+            fixCommentWithCursor(fresh, e.currentTarget);
+          },
+        }, ['Fix with Cursor']),
         el('button', {
           type: 'button',
           onclick: () => toggleResolved(fresh),
@@ -1330,9 +1388,170 @@
           el('span', {}, [c.authorName]),
           el('span', {}, [formatTime(c.createdAt)]),
         ]),
+        el('button', {
+          type: 'button',
+          class: 'review-sidebar-prompt-btn',
+          title: 'Copy Cursor prompt',
+          onclick: (e) => {
+            e.stopPropagation();
+            copyCommentPrompt(c, e.currentTarget);
+          },
+        }, ['Cursor prompt']),
+        el('button', {
+          type: 'button',
+          class: 'review-sidebar-fix-btn',
+          title: 'Fix with Cursor agent',
+          onclick: (e) => {
+            e.stopPropagation();
+            fixCommentWithCursor(c, e.currentTarget);
+          },
+        }, ['Fix']),
       ].filter(Boolean));
       list.appendChild(item);
     });
+
+    const openCount = state.comments.filter((c) => !c.resolved).length;
+    const canFix = Boolean(project.repoUrl || project.localPath || project.type === 'github');
+
+    const copyAllBtn = document.getElementById('review-copy-all-prompts');
+    if (copyAllBtn) {
+      copyAllBtn.disabled = openCount === 0;
+      copyAllBtn.textContent =
+        openCount === 0
+          ? 'No open comments'
+          : `Copy all ${openCount} as Cursor prompt${openCount === 1 ? '' : 's'}`;
+    }
+    const fixAllBtn = document.getElementById('review-fix-all');
+    if (fixAllBtn) {
+      fixAllBtn.disabled = openCount === 0 || !canFix;
+      fixAllBtn.textContent = !canFix
+        ? 'Set repo in Settings to Fix'
+        : openCount === 0
+          ? 'No open comments'
+          : `Fix all ${openCount} with Cursor`;
+    }
+  }
+
+  async function copyCommentPrompt(comment, btn) {
+    if (!window.ReviewPrompts) {
+      alert('Prompt helper failed to load');
+      return;
+    }
+    const text = ReviewPrompts.buildCursorPrompt(comment, project);
+    try {
+      await ReviewPrompts.copyText(text);
+      flashCopied(btn, 'Copied');
+      showPromptToast('Cursor prompt copied — paste it into Cursor Agent');
+    } catch (err) {
+      alert(err.message || 'Could not copy');
+    }
+  }
+
+  async function copyAllOpenPrompts() {
+    if (!window.ReviewPrompts) {
+      alert('Prompt helper failed to load');
+      return;
+    }
+    const text = ReviewPrompts.buildAllOpenPrompts(state.comments, project);
+    if (!text) {
+      showPromptToast('No open comments to copy');
+      return;
+    }
+    try {
+      await ReviewPrompts.copyText(text);
+      const btn = document.getElementById('review-copy-all-prompts');
+      flashCopied(btn, 'Copied to clipboard');
+      showPromptToast('All open comments copied as Cursor prompts');
+    } catch (err) {
+      alert(err.message || 'Could not copy');
+    }
+  }
+
+  function preferredFixMode() {
+    if (project.localPath && !(project.repoUrl || project.type === 'github')) return 'local';
+    return 'cloud';
+  }
+
+  async function fixCommentWithCursor(comment, btn) {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Starting…';
+    }
+    try {
+      const res = await fetch('/api/cursor-fix', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({
+          projectId,
+          commentId: comment.id,
+          mode: preferredFixMode(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to start agent');
+      flashCopied(btn, 'Started');
+      showPromptToast(data.message || 'Cursor agent started');
+      if (data.run?.agentId) {
+        console.log('[codelii] Cursor agent', data.run.agentId, 'run', data.run.runId);
+      }
+    } catch (err) {
+      alert(err.message || 'Could not start Cursor agent');
+      if (btn) btn.textContent = btn.classList.contains('review-btn-fix-inline') ? 'Fix with Cursor' : 'Fix';
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function fixAllOpenWithCursor(btn) {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Starting…';
+    }
+    try {
+      const res = await fetch('/api/cursor-fix', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({
+          projectId,
+          scope: 'all',
+          mode: preferredFixMode(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to start agent');
+      flashCopied(btn, 'Started');
+      showPromptToast(data.message || 'Cursor agent started for all open comments');
+    } catch (err) {
+      alert(err.message || 'Could not start Cursor agent');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        renderSidebar();
+      }
+    }
+  }
+
+  function flashCopied(btn, label) {
+    if (!btn) return;
+    const prev = btn.dataset.label || btn.textContent;
+    btn.dataset.label = prev;
+    btn.textContent = label || 'Copied';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = btn.dataset.label || prev;
+      btn.classList.remove('copied');
+    }, 1600);
+  }
+
+  function showPromptToast(message) {
+    let host = document.getElementById('review-live-toasts');
+    if (!host) {
+      host = el('div', { class: 'review-live-toasts', id: 'review-live-toasts' });
+      document.body.appendChild(host);
+    }
+    const toast = el('div', { class: 'review-live-toast review-prompt-toast' }, [message]);
+    host.appendChild(toast);
+    setTimeout(() => toast.remove(), 4200);
   }
 
   function navigateToComment(comment) {

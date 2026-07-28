@@ -3,12 +3,20 @@
  */
 
 export function injectOverlay(html, project) {
+  const hasSource =
+    typeof project.hasSource === 'boolean'
+      ? project.hasSource
+      : project.type === 'github';
   const ctx = {
     id: project.id,
     name: project.name,
     type: project.type,
     source: project.source,
     baseUrl: project.baseUrl || null,
+    hasSource,
+    repoUrl: project.repoUrl || (project.type === 'github' ? project.source : null),
+    localPath: project.localPath || null,
+    autoCreatePR: project.autoCreatePR !== false,
     viewPrefix: project.type === 'github' ? `/s/${project.id}` : `/p/${project.id}`,
   };
 
@@ -17,6 +25,7 @@ export function injectOverlay(html, project) {
 <link rel="stylesheet" href="/css/review.css">
 <script>window.__REVIEW_PROJECT__=${JSON.stringify(ctx)};</script>
 <script src="/js/auth-guard.js"></script>
+<script src="/js/cursor-prompts.js"></script>
 <script src="/js/review.js" defer></script>
 `;
 

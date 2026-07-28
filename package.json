@@ -11,6 +11,7 @@
     "deploy": "vercel --prod"
   },
   "dependencies": {
+    "@cursor/sdk": "^1.0.24",
     "@vercel/blob": "^2.6.1",
     "@vercel/oidc": "^3.8.0",
     "jose": "^5.9.6",

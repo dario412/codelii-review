@@ -2,7 +2,7 @@ import { put, get, del, list } from '@vercel/blob';
 
 const CORE_PATH = 'review-data/core.json';
 const EMPTY_CORE = { users: [], projects: [] };
-const EMPTY_PROJECT = { comments: [], notifications: [], presence: {} };
+const EMPTY_PROJECT = { comments: [], notifications: [], presence: {}, cursorRuns: [] };
 
 function isVercel() {
   return Boolean(process.env.VERCEL);
@@ -39,6 +39,7 @@ function normalizeProject(raw) {
     comments: Array.isArray(raw?.comments) ? raw.comments : [],
     notifications: Array.isArray(raw?.notifications) ? raw.notifications : [],
     presence: raw?.presence && typeof raw.presence === 'object' ? raw.presence : {},
+    cursorRuns: Array.isArray(raw?.cursorRuns) ? raw.cursorRuns : [],
   };
 }
 
@@ -323,11 +324,20 @@ export function isOwner(project, userId) {
 
 export function publicProject(project, users = []) {
   const owner = users.find((u) => u.id === project.ownerId);
+  const hasSource =
+    typeof project.hasSource === 'boolean'
+      ? project.hasSource
+      : project.type === 'github';
   return {
     id: project.id,
     name: project.name,
     type: project.type,
     source: project.source,
+    hasSource,
+    repoUrl: project.repoUrl || (project.type === 'github' ? project.source : null),
+    repoRef: project.repoRef || 'main',
+    localPath: project.localPath || null,
+    autoCreatePR: project.autoCreatePR !== false,
     ownerId: project.ownerId,
     ownerName: owner?.name || '',
     ownerEmail: owner?.email || '',

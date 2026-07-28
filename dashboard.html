@@ -49,9 +49,60 @@
       <label for="proj-source">URL or GitHub repo</label>
       <input id="proj-source" placeholder="https://example.com or github.com/owner/repo" required>
     </div>
+    <div class="field check-field">
+      <label class="check-label">
+        <input type="checkbox" id="proj-has-source">
+        <span>We have access to the source code (custom-coded / repo open in Cursor)</span>
+      </label>
+      <p class="field-hint">Enables Cursor prompt generation from review comments. Auto-on for GitHub repos.</p>
+    </div>
     <div class="modal-actions">
       <button class="btn" type="button" id="new-cancel">Cancel</button>
       <button class="btn btn-accent" type="button" id="new-submit">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop" id="modal-settings">
+  <div class="modal">
+    <h2>Project settings</h2>
+    <p class="sub" id="settings-sub">Configure how this project works with Cursor.</p>
+    <div class="error-box" id="settings-error"></div>
+    <div class="field">
+      <label for="settings-name">Name</label>
+      <input id="settings-name">
+    </div>
+    <div class="field check-field">
+      <label class="check-label">
+        <input type="checkbox" id="settings-has-source">
+        <span>We have access to the source code</span>
+      </label>
+      <p class="field-hint">Turn this on for custom-coded sites or when the repo is available so comments can generate Cursor prompts / Fix runs.</p>
+    </div>
+    <div class="field">
+      <label for="settings-repo-url">GitHub repo URL (for cloud Fix)</label>
+      <input id="settings-repo-url" placeholder="https://github.com/owner/repo">
+      <p class="field-hint">Required for “Fix with Cursor” in the cloud. Auto-filled for GitHub projects.</p>
+    </div>
+    <div class="field">
+      <label for="settings-repo-ref">Branch / ref</label>
+      <input id="settings-repo-ref" placeholder="main" value="main">
+    </div>
+    <div class="field">
+      <label for="settings-local-path">Local folder path (optional, for local Fix)</label>
+      <input id="settings-local-path" placeholder="/Users/you/projects/my-site">
+      <p class="field-hint">Only used when Codelii runs on your machine. Points the local Cursor agent at this folder.</p>
+    </div>
+    <div class="field check-field">
+      <label class="check-label">
+        <input type="checkbox" id="settings-auto-pr" checked>
+        <span>Open a PR when the cloud agent finishes</span>
+      </label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" id="settings-cancel">Cancel</button>
+      <button class="btn btn-accent" type="button" id="settings-save">Save</button>
     </div>
   </div>
 </div>
@@ -104,9 +155,14 @@
   chip.appendChild(out);
 
   let inviteProjectId = null;
+  let settingsProjectId = null;
 
   function initials(n) {
     return (n || '?').split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  }
+
+  function looksLikeGitHub(value) {
+    return /github\.com\//i.test(value) || /^[^/\s]+\/[^/\s]+$/.test((value || '').trim());
   }
 
   function card(project, owned) {
@@ -118,7 +174,7 @@
       <span class="${badgeClass}">${badge}</span>
       <h3></h3>
       <p class="meta"></p>
-      <p class="meta">${project.memberCount || 1} member${(project.memberCount || 1) === 1 ? '' : 's'}${owned ? '' : ` · ${project.ownerName || 'Owner'}`}</p>
+      <p class="meta">${project.memberCount || 1} member${(project.memberCount || 1) === 1 ? '' : 's'}${owned ? '' : ` · ${project.ownerName || 'Owner'}`}${project.hasSource ? ' · Source linked' : ''}</p>
       <div class="card-actions"></div>
     `;
     el.querySelector('h3').textContent = project.name;
@@ -132,6 +188,12 @@
     actions.appendChild(open);
 
     if (owned) {
+      const settings = document.createElement('button');
+      settings.className = 'btn';
+      settings.textContent = 'Settings';
+      settings.onclick = () => openSettings(project);
+      actions.appendChild(settings);
+
       const invite = document.createElement('button');
       invite.className = 'btn';
       invite.textContent = 'Invite';
@@ -187,9 +249,16 @@
     document.getElementById('new-error').classList.remove('show');
     document.getElementById('proj-name').value = '';
     document.getElementById('proj-source').value = '';
+    document.getElementById('proj-has-source').checked = false;
     openModal('modal-new');
   };
   document.getElementById('new-cancel').onclick = () => closeModal('modal-new');
+
+  document.getElementById('proj-source').addEventListener('input', (e) => {
+    if (looksLikeGitHub(e.target.value)) {
+      document.getElementById('proj-has-source').checked = true;
+    }
+  });
 
   document.getElementById('new-submit').onclick = async () => {
     const err = document.getElementById('new-error');
@@ -204,6 +273,7 @@
         body: JSON.stringify({
           name: document.getElementById('proj-name').value.trim(),
           source: document.getElementById('proj-source').value.trim(),
+          hasSource: document.getElementById('proj-has-source').checked,
         }),
       });
       const data = await res.json();
@@ -217,6 +287,53 @@
     } finally {
       btn.disabled = false;
       btn.textContent = 'Create';
+    }
+  };
+
+  function openSettings(project) {
+    settingsProjectId = project.id;
+    document.getElementById('settings-error').classList.remove('show');
+    document.getElementById('settings-sub').textContent = `Settings for “${project.name}”.`;
+    document.getElementById('settings-name').value = project.name || '';
+    document.getElementById('settings-has-source').checked = Boolean(project.hasSource);
+    document.getElementById('settings-repo-url').value = project.repoUrl || (project.type === 'github' ? project.source : '') || '';
+    document.getElementById('settings-repo-ref').value = project.repoRef || 'main';
+    document.getElementById('settings-local-path').value = project.localPath || '';
+    document.getElementById('settings-auto-pr').checked = project.autoCreatePR !== false;
+    openModal('modal-settings');
+  }
+
+  document.getElementById('settings-cancel').onclick = () => closeModal('modal-settings');
+  document.getElementById('settings-save').onclick = async () => {
+    const err = document.getElementById('settings-error');
+    err.classList.remove('show');
+    const btn = document.getElementById('settings-save');
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+    try {
+      const res = await fetch('/api/projects', {
+        method: 'PATCH',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({
+          id: settingsProjectId,
+          name: document.getElementById('settings-name').value.trim(),
+          hasSource: document.getElementById('settings-has-source').checked,
+          repoUrl: document.getElementById('settings-repo-url').value.trim(),
+          repoRef: document.getElementById('settings-repo-ref').value.trim() || 'main',
+          localPath: document.getElementById('settings-local-path').value.trim(),
+          autoCreatePR: document.getElementById('settings-auto-pr').checked,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Save failed');
+      closeModal('modal-settings');
+      await load();
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save';
     }
   };
 
@@ -316,7 +433,7 @@
     await refreshInvitePanel();
   };
 
-  ['modal-new', 'modal-invite'].forEach((id) => {
+  ['modal-new', 'modal-invite', 'modal-settings'].forEach((id) => {
     document.getElementById(id).addEventListener('click', (e) => {
       if (e.target.id === id) closeModal(id);
     });

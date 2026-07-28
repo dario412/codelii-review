@@ -8,6 +8,11 @@
     { "source": "/s/:projectId", "destination": "/api/serve?projectId=:projectId&path=" },
     { "source": "/s/:projectId/:path(.*)", "destination": "/api/serve?projectId=:projectId&path=:path" }
   ],
+  "functions": {
+    "api/cursor-fix.js": {
+      "maxDuration": 60
+    }
+  },
   "headers": [
     {
       "source": "/api/(.*)",
