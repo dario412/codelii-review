@@ -8,7 +8,12 @@ import {
 } from './lib/store.js';
 import { getUser } from './lib/auth.js';
 import { json, corsOptions } from './lib/http.js';
-import { buildCursorPrompt, buildAllOpenPrompts, resolveRepoUrl } from './lib/prompts.js';
+import {
+  buildCursorPrompt,
+  buildAllOpenPrompts,
+  buildCommentsPrompts,
+  resolveRepoUrl,
+} from './lib/prompts.js';
 import { startCursorFix, getCursorRunStatus, isCursorConfigured } from './lib/cursor-agent.js';
 
 export async function OPTIONS() {
@@ -94,11 +99,20 @@ export async function POST(request) {
     const store = await getProjectStore(projectId);
     let prompt = (body.prompt || '').trim();
     let commentId = body.commentId || null;
-    const scope = body.scope || (commentId ? 'comment' : 'custom');
+    const commentIds = Array.isArray(body.commentIds)
+      ? body.commentIds.map((id) => String(id)).filter(Boolean)
+      : [];
+    const scope = body.scope || (commentId ? 'comment' : commentIds.length ? 'selected' : 'custom');
 
     if (!prompt && scope === 'all') {
       prompt = buildAllOpenPrompts(store.comments, project);
       if (!prompt) return json({ error: 'No open comments to fix' }, 400);
+    } else if (!prompt && (scope === 'selected' || commentIds.length)) {
+      const selected = store.comments.filter(
+        (c) => commentIds.includes(c.id) && !c.resolved
+      );
+      if (!selected.length) return json({ error: 'No selected open comments to fix' }, 400);
+      prompt = buildCommentsPrompts(selected, project);
     } else if (!prompt && commentId) {
       const comment = store.comments.find((c) => c.id === commentId);
       if (!comment) return json({ error: 'Comment not found' }, 404);
@@ -127,6 +141,7 @@ export async function POST(request) {
     const run = {
       id: newId(),
       commentId,
+      commentIds: commentIds.length ? commentIds : commentId ? [commentId] : [],
       scope,
       prompt,
       runtime: started.runtime,

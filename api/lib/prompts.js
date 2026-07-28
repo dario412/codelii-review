@@ -65,21 +65,25 @@ export function buildCursorPrompt(comment, project) {
   return lines.filter((l) => l !== null && l !== undefined).join('\n');
 }
 
-export function buildAllOpenPrompts(comments, project) {
-  const open = (comments || []).filter((c) => !c.resolved);
-  if (!open.length) return '';
+export function buildCommentsPrompts(comments, project) {
+  const list = (comments || []).filter((c) => c && !c.resolved);
+  if (!list.length) return '';
 
   const parts = [
-    `You have ${open.length} open review comment${open.length === 1 ? '' : 's'} to implement for "${project?.name || 'this project'}".`,
+    `You have ${list.length} review comment${list.length === 1 ? '' : 's'} to implement for "${project?.name || 'this project'}".`,
     'Work through them one by one. Keep each change scoped. Source: ' + (project?.source || 'unknown') + '.',
     '',
   ];
 
-  open.forEach((c, i) => {
-    parts.push('---', '', `### Comment ${i + 1} of ${open.length}`, '', buildCursorPrompt(c, project), '');
+  list.forEach((c, i) => {
+    parts.push('---', '', `### Comment ${i + 1} of ${list.length}`, '', buildCursorPrompt(c, project), '');
   });
 
   return parts.join('\n');
+}
+
+export function buildAllOpenPrompts(comments, project) {
+  return buildCommentsPrompts((comments || []).filter((c) => !c.resolved), project);
 }
 
 export function resolveRepoUrl(project) {

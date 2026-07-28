@@ -9,127 +9,193 @@
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/app.css">
 <script src="/js/auth-guard.js"></script>
+<script src="/js/icons.js"></script>
 </head>
-<body>
-<header class="site-nav">
-  <a class="brand" href="/dashboard.html">Codelii<span> Review</span></a>
-  <div class="dash-user" id="user-chip"></div>
+<body class="app-body">
+<header class="site-nav app-nav">
+  <div class="nav-inner">
+    <a class="brand" href="/dashboard.html">Codelii<span> Review</span></a>
+    <div class="dash-user" id="user-chip"></div>
+  </div>
 </header>
 
-<div class="dash-wrap">
+<main class="dash-wrap">
   <div class="dash-header">
-    <h1>Projects</h1>
-    <button class="btn btn-accent" id="btn-new">＋ New project</button>
+    <div>
+      <h1>Projects</h1>
+      <p class="sub" id="dash-sub">Loading your workspace…</p>
+    </div>
+    <div class="dash-tools">
+      <div class="search-field">
+        <span data-icon="search" data-icon-size="16"></span>
+        <input id="project-search" type="search" placeholder="Search projects" aria-label="Search projects" autocomplete="off">
+      </div>
+      <button class="btn btn-accent" id="btn-new" data-icon="plus" data-icon-size="16">
+        <span data-label>New project</span>
+      </button>
+    </div>
   </div>
 
-  <div class="section-head">
-    <h2>My projects</h2>
-  </div>
-  <div class="project-grid" id="owned-grid"></div>
-  <div class="empty" id="owned-empty" hidden>No projects yet. Create one from a live URL or a public GitHub repo.</div>
+  <section id="section-owned">
+    <div class="section-head">
+      <h2>My projects</h2>
+      <span class="count" id="owned-count" hidden></span>
+      <span class="rule"></span>
+    </div>
+    <div class="project-grid" id="owned-grid"></div>
+    <div class="empty" id="owned-empty" hidden>
+      <div class="empty-glyph" data-icon="folder" data-icon-size="22"></div>
+      <h3>No projects yet</h3>
+      <p>Add a live URL or a public GitHub repo, then leave comments straight on the page and turn them into Cursor fixes.</p>
+      <button class="btn btn-accent" id="empty-new" data-icon="plus" data-icon-size="16">
+        <span data-label>Create your first project</span>
+      </button>
+    </div>
+  </section>
 
-  <div class="section-head">
-    <h2>Invited</h2>
+  <section id="section-invited" hidden>
+    <div class="section-head">
+      <h2>Shared with me</h2>
+      <span class="count" id="invited-count" hidden></span>
+      <span class="rule"></span>
+    </div>
+    <div class="project-grid" id="invited-grid"></div>
+  </section>
+
+  <div class="empty" id="search-empty" hidden>
+    <div class="empty-glyph" data-icon="search" data-icon-size="22"></div>
+    <h3>No matching projects</h3>
+    <p>Nothing here matches your search. Try a different name or URL.</p>
   </div>
-  <div class="project-grid" id="invited-grid"></div>
-  <div class="empty" id="invited-empty" hidden>You haven’t been invited to any projects yet.</div>
-</div>
+</main>
 
 <!-- New project modal -->
 <div class="modal-backdrop" id="modal-new">
-  <div class="modal">
-    <h2>New project</h2>
-    <p class="sub">Paste a live website URL or a public GitHub repository. Unlimited projects for now.</p>
-    <div class="error-box" id="new-error"></div>
-    <div class="field">
-      <label for="proj-name">Name (optional)</label>
-      <input id="proj-name" placeholder="Marketing site">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="new-title">
+    <div class="modal-head">
+      <div class="modal-glyph" data-icon="plus" data-icon-size="20"></div>
+      <div class="titles">
+        <h2 id="new-title">New project</h2>
+        <p class="sub">Paste a live website URL or a public GitHub repository.</p>
+      </div>
+      <button class="btn btn-icon" data-close="modal-new" data-icon="close" data-icon-size="16" aria-label="Close"></button>
     </div>
-    <div class="field">
-      <label for="proj-source">URL or GitHub repo</label>
-      <input id="proj-source" placeholder="https://example.com or github.com/owner/repo" required>
-    </div>
-    <div class="field check-field">
-      <label class="check-label">
-        <input type="checkbox" id="proj-has-source">
-        <span>We have access to the source code (custom-coded / repo open in Cursor)</span>
-      </label>
-      <p class="field-hint">Enables Cursor prompt generation from review comments. Auto-on for GitHub repos.</p>
+    <div class="modal-body">
+      <div class="error-box" id="new-error"></div>
+      <div class="field">
+        <label for="proj-name">Name <span class="field-optional">(optional)</span></label>
+        <input id="proj-name" placeholder="Marketing site">
+      </div>
+      <div class="field">
+        <label for="proj-source">URL or GitHub repo</label>
+        <input id="proj-source" placeholder="https://example.com or github.com/owner/repo" required>
+      </div>
+      <div class="field check-field">
+        <label class="check-label">
+          <input type="checkbox" id="proj-has-source">
+          <span>We have access to the source code (custom-coded / repo open in Cursor)</span>
+        </label>
+        <p class="field-hint">Enables Cursor prompt generation from review comments. Auto-on for GitHub repos.</p>
+      </div>
     </div>
     <div class="modal-actions">
-      <button class="btn" type="button" id="new-cancel">Cancel</button>
-      <button class="btn btn-accent" type="button" id="new-submit">Create</button>
+      <button class="btn" type="button" data-close="modal-new">Cancel</button>
+      <button class="btn btn-accent" type="button" id="new-submit"><span data-label>Create project</span></button>
     </div>
   </div>
 </div>
 
 <!-- Settings modal -->
 <div class="modal-backdrop" id="modal-settings">
-  <div class="modal">
-    <h2>Project settings</h2>
-    <p class="sub" id="settings-sub">Configure how this project works with Cursor.</p>
-    <div class="error-box" id="settings-error"></div>
-    <div class="field">
-      <label for="settings-name">Name</label>
-      <input id="settings-name">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-head">
+      <div class="modal-glyph" data-icon="settings" data-icon-size="20"></div>
+      <div class="titles">
+        <h2 id="settings-title">Project settings</h2>
+        <p class="sub" id="settings-sub">Configure how this project works with Cursor.</p>
+      </div>
+      <button class="btn btn-icon" data-close="modal-settings" data-icon="close" data-icon-size="16" aria-label="Close"></button>
     </div>
-    <div class="field check-field">
-      <label class="check-label">
-        <input type="checkbox" id="settings-has-source">
-        <span>We have access to the source code</span>
-      </label>
-      <p class="field-hint">Turn this on for custom-coded sites or when the repo is available so comments can generate Cursor prompts / Fix runs.</p>
-    </div>
-    <div class="field">
-      <label for="settings-repo-url">GitHub repo URL (for cloud Fix)</label>
-      <input id="settings-repo-url" placeholder="https://github.com/owner/repo">
-      <p class="field-hint">Required for “Fix with Cursor” in the cloud. Auto-filled for GitHub projects.</p>
-    </div>
-    <div class="field">
-      <label for="settings-repo-ref">Branch / ref</label>
-      <input id="settings-repo-ref" placeholder="main" value="main">
-    </div>
-    <div class="field">
-      <label for="settings-local-path">Local folder path (optional, for local Fix)</label>
-      <input id="settings-local-path" placeholder="/Users/you/projects/my-site">
-      <p class="field-hint">Only used when Codelii runs on your machine. Points the local Cursor agent at this folder.</p>
-    </div>
-    <div class="field check-field">
-      <label class="check-label">
-        <input type="checkbox" id="settings-auto-pr" checked>
-        <span>Open a PR when the cloud agent finishes</span>
-      </label>
+    <div class="modal-body">
+      <div class="error-box" id="settings-error"></div>
+
+      <span class="modal-section-label">General</span>
+      <div class="field">
+        <label for="settings-name">Name</label>
+        <input id="settings-name">
+      </div>
+      <div class="field check-field">
+        <label class="check-label">
+          <input type="checkbox" id="settings-has-source">
+          <span>We have access to the source code</span>
+        </label>
+        <p class="field-hint">Turn this on for custom-coded sites or when the repo is available so comments can generate Cursor prompts / Fix runs.</p>
+      </div>
+
+      <span class="modal-section-label">Cursor agent</span>
+      <div class="field">
+        <label for="settings-repo-url">GitHub repo URL</label>
+        <input id="settings-repo-url" placeholder="https://github.com/owner/repo">
+        <p class="field-hint">Required for “Fix with Cursor” in the cloud. Auto-filled for GitHub projects.</p>
+      </div>
+      <div class="field">
+        <label for="settings-repo-ref">Branch / ref</label>
+        <input id="settings-repo-ref" placeholder="main" value="main">
+      </div>
+      <div class="field">
+        <label for="settings-local-path">Local folder path <span class="field-optional">(optional)</span></label>
+        <input id="settings-local-path" placeholder="/Users/you/projects/my-site">
+        <p class="field-hint">Only used when Codelii runs on your machine. Points the local Cursor agent at this folder.</p>
+      </div>
+      <div class="field check-field">
+        <label class="check-label">
+          <input type="checkbox" id="settings-auto-pr" checked>
+          <span>Open a PR when the cloud agent finishes</span>
+        </label>
+      </div>
     </div>
     <div class="modal-actions">
-      <button class="btn" type="button" id="settings-cancel">Cancel</button>
-      <button class="btn btn-accent" type="button" id="settings-save">Save</button>
+      <button class="btn" type="button" data-close="modal-settings">Cancel</button>
+      <button class="btn btn-accent" type="button" id="settings-save"><span data-label>Save changes</span></button>
     </div>
   </div>
 </div>
 
 <!-- Invite modal -->
 <div class="modal-backdrop" id="modal-invite">
-  <div class="modal">
-    <h2>Invite collaborators</h2>
-    <p class="sub" id="invite-sub">Share access to this project.</p>
-    <div class="error-box" id="invite-error"></div>
-    <div class="field">
-      <label for="invite-email">Invite by email</label>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="invite-title">
+    <div class="modal-head">
+      <div class="modal-glyph" data-icon="invite" data-icon-size="20"></div>
+      <div class="titles">
+        <h2 id="invite-title">Invite collaborators</h2>
+        <p class="sub" id="invite-sub">Share access to this project.</p>
+      </div>
+      <button class="btn btn-icon" data-close="modal-invite" data-icon="close" data-icon-size="16" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      <div class="error-box" id="invite-error"></div>
+
+      <span class="modal-section-label">Invite by email</span>
       <div class="share-row">
         <input id="invite-email" type="email" placeholder="teammate@company.com">
-        <button class="btn btn-accent" type="button" id="invite-send">Send</button>
+        <button class="btn btn-accent" type="button" id="invite-send" data-icon="mail" data-icon-size="16">
+          <span data-label>Send</span>
+        </button>
       </div>
-    </div>
-    <div class="field">
-      <label>Shareable link</label>
+
+      <span class="modal-section-label">Shareable link</span>
       <div class="share-row">
-        <input id="share-url" readonly>
-        <button class="btn" type="button" id="share-copy">Copy</button>
+        <input id="share-url" readonly aria-label="Shareable link">
+        <button class="btn" type="button" id="share-copy" data-icon="copy" data-icon-size="16">
+          <span data-label>Copy</span>
+        </button>
       </div>
+
+      <span class="modal-section-label">People with access</span>
+      <div class="invite-list" id="invite-list"></div>
     </div>
-    <div class="invite-list" id="invite-list"></div>
     <div class="modal-actions">
-      <button class="btn" type="button" id="invite-close">Done</button>
+      <button class="btn btn-accent" type="button" data-close="modal-invite">Done</button>
     </div>
   </div>
 </div>
@@ -138,24 +204,15 @@
 (function () {
   if (!window.ReviewAuth?.isLoggedIn()) return;
 
-  const user = ReviewAuth.getUser();
-  const chip = document.getElementById('user-chip');
-  chip.innerHTML = '';
-  const av = document.createElement('div');
-  av.className = 'avatar';
-  av.textContent = initials(user.name);
-  chip.appendChild(av);
-  const name = document.createElement('span');
-  name.textContent = user.name;
-  chip.appendChild(name);
-  const out = document.createElement('button');
-  out.className = 'btn';
-  out.textContent = 'Sign out';
-  out.onclick = () => ReviewAuth.logout();
-  chip.appendChild(out);
+  // Render every [data-icon] placeholder declared in the markup above.
+  document.querySelectorAll('[data-icon]').forEach((node) => {
+    node.insertAdjacentHTML('afterbegin', Icons.svg(node.dataset.icon, Number(node.dataset.iconSize) || 18));
+  });
 
+  const user = ReviewAuth.getUser();
   let inviteProjectId = null;
   let settingsProjectId = null;
+  let projects = { owned: [], invited: [] };
 
   function initials(n) {
     return (n || '?').split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
@@ -165,54 +222,179 @@
     return /github\.com\//i.test(value) || /^[^/\s]+\/[^/\s]+$/.test((value || '').trim());
   }
 
+  function plural(n, word) {
+    return `${n} ${word}${n === 1 ? '' : 's'}`;
+  }
+
+  function setLabel(btn, text) {
+    const label = btn.querySelector('[data-label]');
+    (label || btn).textContent = text;
+  }
+
+  function iconButton(name, tip, onClick, extraClass = '') {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn btn-icon tip ${extraClass}`.trim();
+    btn.dataset.tip = tip;
+    btn.setAttribute('aria-label', tip);
+    btn.innerHTML = Icons.svg(name, 17);
+    btn.onclick = onClick;
+    return btn;
+  }
+
+  function fact(iconName, text, tone = '') {
+    const span = document.createElement('span');
+    span.className = `fact ${tone}`.trim();
+    span.innerHTML = Icons.svg(iconName, 14);
+    span.appendChild(document.createTextNode(text));
+    return span;
+  }
+
+  /* --- user chip --- */
+  (function renderUserChip() {
+    const chip = document.getElementById('user-chip');
+    const who = document.createElement('div');
+    who.className = 'user-chip';
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = initials(user.name);
+    const text = document.createElement('div');
+    text.className = 'who';
+    const name = document.createElement('strong');
+    name.textContent = user.name;
+    const email = document.createElement('span');
+    email.textContent = user.email || '';
+    text.append(name, email);
+    who.append(avatar, text);
+
+    chip.append(
+      who,
+      iconButton('signOut', 'Sign out', () => ReviewAuth.logout(), 'tip-below'),
+    );
+  })();
+
+  /* --- project cards --- */
   function card(project, owned) {
+    const isGithub = project.type === 'github';
     const el = document.createElement('article');
     el.className = 'project-card';
-    const badge = project.type === 'github' ? 'GitHub' : 'Live URL';
-    const badgeClass = project.type === 'github' ? 'badge github' : 'badge';
-    el.innerHTML = `
-      <span class="${badgeClass}">${badge}</span>
-      <h3></h3>
-      <p class="meta"></p>
-      <p class="meta">${project.memberCount || 1} member${(project.memberCount || 1) === 1 ? '' : 's'}${owned ? '' : ` · ${project.ownerName || 'Owner'}`}${project.hasSource ? ' · Source linked' : ''}</p>
-      <div class="card-actions"></div>
-    `;
-    el.querySelector('h3').textContent = project.name;
-    el.querySelectorAll('.meta')[0].textContent = project.source;
+    el.dataset.search = `${project.name || ''} ${project.source || ''}`.toLowerCase();
 
-    const actions = el.querySelector('.card-actions');
+    const glyph = document.createElement('div');
+    glyph.className = `card-glyph${isGithub ? ' github' : ''}`;
+    glyph.innerHTML = Icons.svg(isGithub ? 'github' : 'globe', 20);
+
+    const title = document.createElement('h3');
+    title.textContent = project.name;
+    title.title = project.name;
+
+    const sourceText = document.createElement('span');
+    sourceText.textContent = project.source;
+    sourceText.title = project.source;
+    const source = document.createElement('p');
+    source.className = 'card-source';
+    source.innerHTML = Icons.svg('link', 14);
+    source.appendChild(sourceText);
+
+    const head = document.createElement('div');
+    head.className = 'card-head';
+    head.append(title, source);
+
+    const top = document.createElement('div');
+    top.className = 'card-top';
+    top.append(glyph, head);
+
+    const facts = document.createElement('div');
+    facts.className = 'card-facts';
+    facts.appendChild(fact('users', plural(project.memberCount || 1, 'member')));
+    if (!owned && project.ownerName) facts.appendChild(fact('user', project.ownerName));
+    facts.appendChild(
+      project.hasSource
+        ? fact('code', 'Source linked', 'on')
+        : fact('dashed', 'No source', 'off'),
+    );
+    if (project.status && project.status !== 'ready') {
+      facts.appendChild(fact('dashed', 'Importing…', 'warn'));
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'card-actions';
     const open = document.createElement('a');
-    open.className = 'btn btn-accent';
+    open.className = 'btn btn-accent btn-sm btn-open';
     open.href = project.viewUrl;
-    open.textContent = 'Open';
+    open.innerHTML = Icons.svg('open', 16);
+    open.appendChild(document.createTextNode('Open review'));
     actions.appendChild(open);
 
     if (owned) {
-      const settings = document.createElement('button');
-      settings.className = 'btn';
-      settings.textContent = 'Settings';
-      settings.onclick = () => openSettings(project);
-      actions.appendChild(settings);
-
-      const invite = document.createElement('button');
-      invite.className = 'btn';
-      invite.textContent = 'Invite';
-      invite.onclick = () => openInvite(project);
-      actions.appendChild(invite);
-
-      const del = document.createElement('button');
-      del.className = 'btn btn-danger';
-      del.textContent = 'Delete';
-      del.onclick = () => deleteProject(project);
-      actions.appendChild(del);
+      actions.append(
+        iconButton('settings', 'Project settings', () => openSettings(project)),
+        iconButton('invite', 'Invite collaborators', () => openInvite(project)),
+        iconButton('trash', 'Delete project', () => deleteProject(project), 'btn-danger tip-end'),
+      );
     } else {
-      const leave = document.createElement('button');
-      leave.className = 'btn';
-      leave.textContent = 'Leave';
-      leave.onclick = () => leaveProject(project);
-      actions.appendChild(leave);
+      actions.appendChild(
+        iconButton('signOut', 'Leave project', () => leaveProject(project), 'tip-end'),
+      );
     }
+
+    el.append(top, facts, actions);
     return el;
+  }
+
+  function showSkeletons() {
+    const grid = document.getElementById('owned-grid');
+    grid.innerHTML = '';
+    for (let i = 0; i < 3; i += 1) {
+      const sk = document.createElement('div');
+      sk.className = 'skeleton-card';
+      grid.appendChild(sk);
+    }
+  }
+
+  function render() {
+    const owned = projects.owned || [];
+    const invited = projects.invited || [];
+
+    const ownedGrid = document.getElementById('owned-grid');
+    const invitedGrid = document.getElementById('invited-grid');
+    ownedGrid.innerHTML = '';
+    invitedGrid.innerHTML = '';
+    owned.forEach((p) => ownedGrid.appendChild(card(p, true)));
+    invited.forEach((p) => invitedGrid.appendChild(card(p, false)));
+
+    [['owned-count', owned.length], ['invited-count', invited.length]].forEach(([id, n]) => {
+      const el = document.getElementById(id);
+      el.textContent = n;
+      el.hidden = false;
+    });
+    document.getElementById('section-invited').hidden = invited.length === 0;
+    document.getElementById('dash-sub').textContent = owned.length || invited.length
+      ? `${plural(owned.length, 'project')}${invited.length ? ` · ${invited.length} shared with you` : ''}`
+      : 'Create a project to start collecting feedback on a live site.';
+
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const term = document.getElementById('project-search').value.trim().toLowerCase();
+    let visible = 0;
+    document.querySelectorAll('.project-card').forEach((el) => {
+      const match = !term || el.dataset.search.includes(term);
+      el.hidden = !match;
+      if (match) visible += 1;
+    });
+
+    const owned = projects.owned || [];
+    const invited = projects.invited || [];
+    const searching = Boolean(term);
+
+    document.getElementById('owned-empty').hidden = searching || owned.length > 0;
+    document.getElementById('search-empty').hidden = !searching || visible > 0;
+    document.getElementById('section-owned').hidden =
+      searching && !document.querySelector('#owned-grid .project-card:not([hidden])');
+    document.getElementById('section-invited').hidden = invited.length === 0
+      || (searching && !document.querySelector('#invited-grid .project-card:not([hidden])'));
   }
 
   async function load() {
@@ -222,37 +404,47 @@
       location.href = '/login.html?redirect=/dashboard.html';
       return;
     }
-    const data = await res.json();
-    const ownedGrid = document.getElementById('owned-grid');
-    const invitedGrid = document.getElementById('invited-grid');
-    ownedGrid.innerHTML = '';
-    invitedGrid.innerHTML = '';
-
-    const owned = data.owned || [];
-    const invited = data.invited || [];
-
-    document.getElementById('owned-empty').hidden = owned.length > 0;
-    document.getElementById('invited-empty').hidden = invited.length > 0;
-
-    owned.forEach((p) => ownedGrid.appendChild(card(p, true)));
-    invited.forEach((p) => invitedGrid.appendChild(card(p, false)));
+    projects = await res.json();
+    render();
   }
 
+  /* --- modals --- */
   function openModal(id) {
-    document.getElementById(id).classList.add('open');
+    const backdrop = document.getElementById(id);
+    backdrop.classList.add('open');
+    backdrop.querySelector('input:not([readonly])')?.focus();
   }
   function closeModal(id) {
     document.getElementById(id).classList.remove('open');
   }
 
-  document.getElementById('btn-new').onclick = () => {
+  document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.onclick = () => closeModal(btn.dataset.close);
+  });
+
+  ['modal-new', 'modal-invite', 'modal-settings'].forEach((id) => {
+    document.getElementById(id).addEventListener('click', (e) => {
+      if (e.target.id === id) closeModal(id);
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    document.querySelectorAll('.modal-backdrop.open').forEach((m) => m.classList.remove('open'));
+  });
+
+  /* --- create --- */
+  function openNew() {
     document.getElementById('new-error').classList.remove('show');
     document.getElementById('proj-name').value = '';
     document.getElementById('proj-source').value = '';
     document.getElementById('proj-has-source').checked = false;
     openModal('modal-new');
-  };
-  document.getElementById('new-cancel').onclick = () => closeModal('modal-new');
+  }
+
+  document.getElementById('btn-new').onclick = openNew;
+  document.getElementById('empty-new').onclick = openNew;
+  document.getElementById('project-search').addEventListener('input', applyFilter);
 
   document.getElementById('proj-source').addEventListener('input', (e) => {
     if (looksLikeGitHub(e.target.value)) {
@@ -265,7 +457,7 @@
     err.classList.remove('show');
     const btn = document.getElementById('new-submit');
     btn.disabled = true;
-    btn.textContent = 'Creating…';
+    setLabel(btn, 'Creating…');
     try {
       const res = await fetch('/api/projects', {
         method: 'POST',
@@ -286,10 +478,11 @@
       err.classList.add('show');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Create';
+      setLabel(btn, 'Create project');
     }
   };
 
+  /* --- settings --- */
   function openSettings(project) {
     settingsProjectId = project.id;
     document.getElementById('settings-error').classList.remove('show');
@@ -303,13 +496,12 @@
     openModal('modal-settings');
   }
 
-  document.getElementById('settings-cancel').onclick = () => closeModal('modal-settings');
   document.getElementById('settings-save').onclick = async () => {
     const err = document.getElementById('settings-error');
     err.classList.remove('show');
     const btn = document.getElementById('settings-save');
     btn.disabled = true;
-    btn.textContent = 'Saving…';
+    setLabel(btn, 'Saving…');
     try {
       const res = await fetch('/api/projects', {
         method: 'PATCH',
@@ -333,7 +525,7 @@
       err.classList.add('show');
     } finally {
       btn.disabled = false;
-      btn.textContent = 'Save';
+      setLabel(btn, 'Save changes');
     }
   };
 
@@ -366,6 +558,7 @@
     await load();
   }
 
+  /* --- invites --- */
   async function openInvite(project) {
     inviteProjectId = project.id;
     document.getElementById('invite-error').classList.remove('show');
@@ -373,6 +566,33 @@
     document.getElementById('invite-email').value = '';
     openModal('modal-invite');
     await refreshInvitePanel();
+  }
+
+  function inviteRow({ name, email, role, pending }) {
+    const row = document.createElement('div');
+    row.className = 'invite-row';
+
+    const avatar = document.createElement('div');
+    avatar.className = `avatar${pending ? ' muted' : ''}`;
+    avatar.textContent = pending ? '…' : initials(name);
+
+    const who = document.createElement('div');
+    who.className = 'who';
+    const primary = document.createElement('strong');
+    primary.textContent = name || email;
+    who.appendChild(primary);
+    if (name && email) {
+      const secondary = document.createElement('span');
+      secondary.textContent = email;
+      who.appendChild(secondary);
+    }
+
+    const chip = document.createElement('span');
+    chip.className = `role-chip${pending ? ' pending' : ''}`;
+    chip.textContent = pending ? 'Pending' : role || 'member';
+
+    row.append(avatar, who, chip);
+    return row;
   }
 
   async function refreshInvitePanel() {
@@ -390,27 +610,17 @@
     document.getElementById('share-url').value = data.shareUrl || '';
     const list = document.getElementById('invite-list');
     list.innerHTML = '';
-    (data.members || []).forEach((m) => {
-      const row = document.createElement('div');
-      row.className = 'invite-row';
-      row.innerHTML = `<span>${m.name} · ${m.email}</span><span>${m.role}</span>`;
-      list.appendChild(row);
-    });
-    (data.invites || []).forEach((i) => {
-      const row = document.createElement('div');
-      row.className = 'invite-row';
-      row.innerHTML = `<span>${i.email}</span><span>pending</span>`;
-      list.appendChild(row);
-    });
+    (data.members || []).forEach((m) => list.appendChild(inviteRow(m)));
+    (data.invites || []).forEach((i) => list.appendChild(inviteRow({ email: i.email, pending: true })));
   }
 
-  document.getElementById('invite-close').onclick = () => closeModal('modal-invite');
   document.getElementById('share-copy').onclick = async () => {
+    const btn = document.getElementById('share-copy');
     const val = document.getElementById('share-url').value;
     if (!val) return;
     await navigator.clipboard.writeText(val);
-    document.getElementById('share-copy').textContent = 'Copied';
-    setTimeout(() => (document.getElementById('share-copy').textContent = 'Copy'), 1200);
+    setLabel(btn, 'Copied');
+    setTimeout(() => setLabel(btn, 'Copy'), 1400);
   };
 
   document.getElementById('invite-send').onclick = async () => {
@@ -418,27 +628,29 @@
     err.classList.remove('show');
     const email = document.getElementById('invite-email').value.trim();
     if (!email) return;
-    const res = await fetch('/api/invites', {
-      method: 'POST',
-      headers: ReviewAuth.headers(),
-      body: JSON.stringify({ action: 'invite', projectId: inviteProjectId, email }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      err.textContent = data.error || 'Invite failed';
+    const btn = document.getElementById('invite-send');
+    btn.disabled = true;
+    setLabel(btn, 'Sending…');
+    try {
+      const res = await fetch('/api/invites', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'invite', projectId: inviteProjectId, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Invite failed');
+      document.getElementById('invite-email').value = '';
+      await refreshInvitePanel();
+    } catch (e) {
+      err.textContent = e.message;
       err.classList.add('show');
-      return;
+    } finally {
+      btn.disabled = false;
+      setLabel(btn, 'Send');
     }
-    document.getElementById('invite-email').value = '';
-    await refreshInvitePanel();
   };
 
-  ['modal-new', 'modal-invite', 'modal-settings'].forEach((id) => {
-    document.getElementById(id).addEventListener('click', (e) => {
-      if (e.target.id === id) closeModal(id);
-    });
-  });
-
+  showSkeletons();
   load().catch((e) => alert(e.message));
 })();
 </script>

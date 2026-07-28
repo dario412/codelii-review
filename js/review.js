@@ -20,6 +20,7 @@
     pendingPin: null,
     highlightId: null,
     viewingCommentId: null,
+    selectedIds: new Set(),
     liveSyncTimer: null,
     hasSyncedOnce: false,
     sidebarTab: 'open',
@@ -29,6 +30,44 @@
   const page = currentPage();
   const projectId = project.id;
   const viewPrefix = (project.viewPrefix || '').replace(/\/$/, '');
+
+  /* Phosphor Icons (bold, 256x256) — inlined so the overlay stays dependency-free */
+  const PHOSPHOR_PATHS = {
+    reply: 'M236,200a12,12,0,0,1-24,0,84.09,84.09,0,0,0-84-84H61l27.52,27.51a12,12,0,0,1-17,17l-48-48a12,12,0,0,1,0-17l48-48a12,12,0,0,1,17,17L61,92h67A108.12,108.12,0,0,1,236,200Z',
+    copy: 'M216,28H88A12,12,0,0,0,76,40V76H40A12,12,0,0,0,28,88V216a12,12,0,0,0,12,12H168a12,12,0,0,0,12-12V180h36a12,12,0,0,0,12-12V40A12,12,0,0,0,216,28ZM156,204H52V100H156Zm48-48H180V88a12,12,0,0,0-12-12H100V52H204Z',
+    sparkle: 'M199,125.31l-49.88-18.39L130.69,57a19.92,19.92,0,0,0-37.38,0L74.92,106.92,25,125.31a19.92,19.92,0,0,0,0,37.38l49.88,18.39L93.31,231a19.92,19.92,0,0,0,37.38,0l18.39-49.88L199,162.69a19.92,19.92,0,0,0,0-37.38Zm-63.38,35.16a12,12,0,0,0-7.11,7.11L112,212.28l-16.47-44.7a12,12,0,0,0-7.11-7.11L43.72,144l44.7-16.47a12,12,0,0,0,7.11-7.11L112,75.72l16.47,44.7a12,12,0,0,0,7.11,7.11L180.28,144ZM140,40a12,12,0,0,1,12-12h12V16a12,12,0,0,1,24,0V28h12a12,12,0,0,1,0,24H188V64a12,12,0,0,1-24,0V52H152A12,12,0,0,1,140,40ZM252,88a12,12,0,0,1-12,12h-4v4a12,12,0,0,1-24,0v-4h-4a12,12,0,0,1,0-24h4V72a12,12,0,0,1,24,0v4h4A12,12,0,0,1,252,88Z',
+    checkCircle: 'M176.49,95.51a12,12,0,0,1,0,17l-56,56a12,12,0,0,1-17,0l-24-24a12,12,0,1,1,17-17L112,143l47.51-47.52A12,12,0,0,1,176.49,95.51ZM236,128A108,108,0,1,1,128,20,108.12,108.12,0,0,1,236,128Zm-24,0a84,84,0,1,0-84,84A84.09,84.09,0,0,0,212,128Z',
+    reopen: 'M228,128a100,100,0,0,1-98.66,100H128a99.39,99.39,0,0,1-68.62-27.29,12,12,0,0,1,16.48-17.45,76,76,0,1,0-1.57-109c-.13.13-.25.25-.39.37L54.89,92H72a12,12,0,0,1,0,24H24a12,12,0,0,1-12-12V56a12,12,0,0,1,24,0V76.72L57.48,57.06A100,100,0,0,1,228,128Z',
+    trash: 'M216,48H180V36A28,28,0,0,0,152,8H104A28,28,0,0,0,76,36V48H40a12,12,0,0,0,0,24h4V208a20,20,0,0,0,20,20H192a20,20,0,0,0,20-20V72h4a12,12,0,0,0,0-24ZM100,36a4,4,0,0,1,4-4h48a4,4,0,0,1,4,4V48H100Zm88,168H68V72H188ZM116,104v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Zm48,0v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Z',
+    x: 'M208.49,191.51a12,12,0,0,1-17,17L128,145,64.49,208.49a12,12,0,0,1-17-17L111,128,47.51,64.49a12,12,0,0,1,17-17L128,111l63.51-63.51a12,12,0,0,1,17,17L145,128Z',
+    check: 'M232.49,80.49l-128,128a12,12,0,0,1-17,0l-56-56a12,12,0,1,1,17-17L96,183,215.51,63.51a12,12,0,0,1,17,17Z',
+    list: 'M80,64a12,12,0,0,1,12-12H216a12,12,0,0,1,0,24H92A12,12,0,0,1,80,64Zm136,52H92a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24Zm0,64H92a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24ZM44,80A16,16,0,1,0,28,64,16,16,0,0,0,44,80Zm0,64a16,16,0,1,0-16-16A16,16,0,0,0,44,144Zm0,64a16,16,0,1,0-16-16A16,16,0,0,0,44,208Z',
+    arrowLeft: 'M228,128a12,12,0,0,1-12,12H69l51.52,51.51a12,12,0,0,1-17,17l-72-72a12,12,0,0,1,0-17l72-72a12,12,0,0,1,17,17L69,116H216A12,12,0,0,1,228,128Z',
+    plus: 'M224,128a12,12,0,0,1-12,12H140v72a12,12,0,0,1-24,0V140H44a12,12,0,0,1,0-24h72V44a12,12,0,0,1,24,0v72h72A12,12,0,0,1,224,128Z',
+    bell: 'M224,184h-8.36l-8.21-131.3a28,28,0,0,0-27.86-26.7H160a32,32,0,0,0-64,0H76.43a28,28,0,0,0-27.86,26.7L40.36,184H32a12,12,0,0,0,0,24H224a12,12,0,0,0,0-24ZM96,56a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm-31.64,128,7.71-123.28A4,4,0,0,1,76.43,56H88v8a12,12,0,0,0,12,12h56a12,12,0,0,0,12-12V56h11.57a4,4,0,0,1,4.36,4.72L181.64,184ZM156,228a28,28,0,0,1-56,0Z',
+    signOut: 'M120,216a12,12,0,0,1-12,12H48a20,20,0,0,1-20-20V48A20,20,0,0,1,48,28h60a12,12,0,0,1,0,24H52V204h56A12,12,0,0,1,120,216Zm108.49-96.49-40-40a12,12,0,0,0-17,17L191,116H104a12,12,0,0,0,0,24h87l-19.52,19.51a12,12,0,0,0,17,17l40-40A12,12,0,0,0,228.49,119.51Z',
+    chat: 'M132,24A100.14,100.14,0,0,0,32,124v84a12,12,0,0,0,12,12h88a100,100,0,0,0,0-200ZM132,200H56V124a76,76,0,1,1,76,76Z',
+    camera: 'M208,56H180.28L166.65,35.56A12,12,0,0,0,156.72,28H99.28a12,12,0,0,0-9.93,7.56L75.72,56H48A28,28,0,0,0,20,84V192a28,28,0,0,0,28,28H208a28,28,0,0,0,28-28V84A28,28,0,0,0,208,56Zm4,136a4,4,0,0,1-4,4H48a4,4,0,0,1-4-4V84a4,4,0,0,1,4-4H80a12,12,0,0,0,9.93-7.56L103.56,52h48.88l13.63,20.44A12,12,0,0,0,176,80h32a4,4,0,0,1,4,4ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,64a20,20,0,1,1,20-20A20,20,0,0,1,128,152Z',
+    users: 'M125.18,156.94a64,64,0,1,0-66.36,0,100.23,100.23,0,0,0-39.55,32.42,12,12,0,0,0,19.46,14.08,76,76,0,0,1,106.54,0,12,12,0,0,0,19.46-14.08A100.23,100.23,0,0,0,125.18,156.94ZM92,140a40,40,0,1,1,40-40A40,40,0,0,1,92,140Zm88-4a12,12,0,0,1,0-24,24,24,0,1,0-23.79-27.86,12,12,0,1,1-23.06-6.66A48.05,48.05,0,0,1,196,136a48.46,48.46,0,0,1-6.55.45,12,12,0,0,1-2.64-23.72A24.09,24.09,0,0,0,180,136Zm27.89,54.51a12,12,0,0,1-16.62,17.3,75.32,75.32,0,0,0-32.09-15.55,12,12,0,0,1,5.64-23.32,99.14,99.14,0,0,1,43.07,20.57Z',
+    house: 'M222.14,105.85l-80-80a20,20,0,0,0-28.28,0l-80,80A19.86,19.86,0,0,0,28,120v92a12,12,0,0,0,12,12H216a12,12,0,0,0,12-12V120A19.86,19.86,0,0,0,222.14,105.85ZM204,200H160V144a12,12,0,0,0-12-12H108a12,12,0,0,0-12,12v56H52V122.49l76-76,76,76Z',
+  };
+
+  function icon(name, size = 17) {
+    const wrap = el('span', { class: 'review-icon', 'aria-hidden': 'true' });
+    wrap.innerHTML =
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" ` +
+      `viewBox="0 0 256 256" fill="currentColor"><path d="${PHOSPHOR_PATHS[name]}"/></svg>`;
+    return wrap;
+  }
+
+  function btnContent(iconName, label, iconSize = 16) {
+    return [icon(iconName, iconSize), el('span', { 'data-btn-label': '' }, [label])];
+  }
+
+  function setButtonContent(btn, iconName, label, iconSize = 16) {
+    if (!btn) return;
+    btn.replaceChildren(...btnContent(iconName, label, iconSize));
+  }
 
   init();
 
@@ -227,70 +266,92 @@
     const toolbar = el('div', { class: 'review-toolbar', id: 'review-toolbar' }, [
       el('div', { class: 'review-toolbar-left' }, [
         el('button', {
-          class: 'review-btn',
+          type: 'button',
+          class: 'review-btn review-btn-toolbar',
           id: 'review-toggle-sidebar',
+          title: 'Toggle comments sidebar',
           onclick: toggleSidebar,
-        }, ['☰ Comments']),
+        }, btnContent('list', 'Comments')),
         el('a', {
-          class: 'review-btn',
+          class: 'review-btn review-btn-toolbar review-btn-quiet',
           href: '/dashboard.html',
           title: 'Back to dashboard',
-        }, ['← Dashboard']),
-        el('span', { class: 'review-logo' }, [
-          project.name || 'Project',
-          el('span', {}, [' · Review']),
+        }, btnContent('house', 'Dashboard')),
+        el('div', { class: 'review-toolbar-divider' }),
+        el('div', { class: 'review-logo' }, [
+          el('span', { class: 'review-logo-name' }, [project.name || 'Project']),
+          el('span', { class: 'review-logo-badge' }, ['Review']),
         ]),
         el('div', { class: 'review-online-wrap', id: 'review-online-wrap' }),
       ]),
       el('div', { class: 'review-toolbar-right' }, [
         el('button', {
+          type: 'button',
           class: 'review-btn review-btn-primary',
           id: 'review-toggle-mode',
+          title: 'Click anywhere on the page to leave a comment',
           onclick: toggleCommentMode,
-        }, ['＋ Add comment']),
+        }, btnContent('plus', 'Add comment')),
         el('div', { class: 'review-notifications-wrap', id: 'review-notifications-wrap' }, [
           el('button', {
             type: 'button',
-            class: 'review-btn review-notifications-btn',
+            class: 'review-btn review-btn-icon',
             id: 'review-notifications-btn',
+            title: 'Notifications',
+            'aria-label': 'Notifications',
             onclick: toggleNotifications,
-          }, ['🔔', el('span', { class: 'review-notifications-badge', id: 'review-notifications-badge' }, [''])]),
+          }, [
+            icon('bell', 18),
+            el('span', { class: 'review-notifications-badge', id: 'review-notifications-badge' }, ['']),
+          ]),
           el('div', { class: 'review-notifications-panel', id: 'review-notifications-panel' }),
         ]),
-        el('div', { class: 'review-user' }, [
+        el('div', { class: 'review-user', title: user.email || user.name }, [
           el('div', { class: 'review-avatar' }, [initials(user.name)]),
-          el('span', {}, [user.name]),
+          el('span', { class: 'review-user-name' }, [user.name]),
         ]),
-        el('button', { class: 'review-btn', onclick: () => ReviewAuth.logout() }, ['Sign out']),
+        el('button', {
+          type: 'button',
+          class: 'review-btn review-btn-icon',
+          title: 'Sign out',
+          'aria-label': 'Sign out',
+          onclick: () => ReviewAuth.logout(),
+        }, [icon('signOut', 17)]),
       ]),
     ]);
 
     const sidebar = el('div', { class: 'review-sidebar open', id: 'review-sidebar' }, [
       el('div', { class: 'review-sidebar-header' }, [
-        el('h2', {}, ['Comments']),
+        el('div', { class: 'review-sidebar-title' }, [
+          icon('chat', 18),
+          el('h2', {}, ['Comments']),
+        ]),
         el('span', { class: 'review-sidebar-count', id: 'review-count' }, ['0']),
       ]),
       el('div', { class: 'review-sidebar-prompts', id: 'review-sidebar-prompts' }, [
-        el('button', {
-          type: 'button',
-          class: 'review-btn review-btn-prompt',
-          id: 'review-copy-all-prompts',
-          title: 'Copy Cursor prompts for all open comments',
-          onclick: (e) => {
-            e.stopPropagation();
-            copyAllOpenPrompts();
-          },
-        }, ['Copy all as Cursor prompts']),
-        el('button', {
-          type: 'button',
-          class: 'review-btn review-btn-fix',
-          id: 'review-fix-all',
-          title: 'Start a Cursor agent for all open comments',
-          onclick: (e) => {
-            e.stopPropagation();
-            fixAllOpenWithCursor(e.currentTarget);
-          },
-        }, ['Fix all with Cursor']),
+        el('p', { class: 'review-sidebar-prompts-label' }, ['Cursor actions']),
+        el('div', { class: 'review-sidebar-prompt-row' }, [
+          el('button', {
+            type: 'button',
+            class: 'review-btn review-btn-prompt',
+            id: 'review-copy-all-prompts',
+            title: 'Copy Cursor prompts for all open comments',
+            onclick: (e) => {
+              e.stopPropagation();
+              copyAllOpenPrompts();
+            },
+          }, btnContent('copy', 'Copy prompts')),
+          el('button', {
+            type: 'button',
+            class: 'review-btn review-btn-fix',
+            id: 'review-fix-all',
+            title: 'Start a Cursor agent for all open comments',
+            onclick: (e) => {
+              e.stopPropagation();
+              fixAllOpenWithCursor(e.currentTarget);
+            },
+          }, btnContent('sparkle', 'Fix all')),
+        ]),
       ]),
       el('div', { class: 'review-sidebar-tabs', id: 'review-sidebar-tabs' }, [
         el('button', {
@@ -298,13 +359,19 @@
           class: 'review-sidebar-tab active',
           id: 'review-tab-open',
           onclick: () => setSidebarTab('open'),
-        }, ['Open']),
+        }, [
+          el('span', { 'data-tab-label': '' }, ['Open']),
+          el('span', { class: 'review-sidebar-tab-count', id: 'review-tab-open-count' }, ['0']),
+        ]),
         el('button', {
           type: 'button',
           class: 'review-sidebar-tab',
           id: 'review-tab-resolved',
           onclick: () => setSidebarTab('resolved'),
-        }, ['Resolved']),
+        }, [
+          el('span', { 'data-tab-label': '' }, ['Resolved']),
+          el('span', { class: 'review-sidebar-tab-count', id: 'review-tab-resolved-count' }, ['0']),
+        ]),
       ]),
       el('div', { class: 'review-sidebar-list', id: 'review-sidebar-list' }),
     ]);
@@ -316,13 +383,15 @@
     document.body.appendChild(sidebar);
     document.body.appendChild(pinsLayer);
     ensureCursorFixModal();
+    ensureSelectionBar();
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         closeCursorFixModal();
         closeBubble();
         closeNotifications();
-        if (state.commentMode) toggleCommentMode();
+        if (state.selectedIds.size) clearSelection();
+        else if (state.commentMode) toggleCommentMode();
       }
     });
 
@@ -390,19 +459,32 @@
     wrap.innerHTML = '';
 
     if (!state.onlineUsers.length) {
-      wrap.appendChild(el('span', { class: 'review-online-empty' }, ['No one else online']));
+      wrap.appendChild(el('div', { class: 'review-online-empty' }, [
+        icon('users', 14),
+        el('span', {}, ['Just you']),
+      ]));
       return;
     }
 
-    const label = el('span', { class: 'review-online-label' }, ['Online:']);
-    wrap.appendChild(label);
+    wrap.appendChild(el('div', { class: 'review-online-label' }, [
+      icon('users', 14),
+      el('span', {}, [`${state.onlineUsers.length} online`]),
+    ]));
 
-    state.onlineUsers.forEach((u) => {
-      wrap.appendChild(el('div', { class: 'review-online-user', title: u.email }, [
-        el('span', { class: 'review-online-dot' }),
-        el('span', {}, [u.name]),
-      ]));
+    const faces = el('div', { class: 'review-online-faces' });
+    state.onlineUsers.slice(0, 4).forEach((u) => {
+      faces.appendChild(el('div', {
+        class: 'review-online-face',
+        title: `${u.name} · ${u.email || ''}`,
+      }, [initials(u.name)]));
     });
+    if (state.onlineUsers.length > 4) {
+      faces.appendChild(el('div', {
+        class: 'review-online-face review-online-face-more',
+        title: state.onlineUsers.slice(4).map((u) => u.name).join(', '),
+      }, [`+${state.onlineUsers.length - 4}`]));
+    }
+    wrap.appendChild(faces);
   }
 
   function renderNotificationBadge() {
@@ -541,7 +623,7 @@
   async function captureViewportScreenshot() {
     const html2canvas = await getHtml2Canvas();
     const reviewNodes = document.querySelectorAll(
-      '.review-toolbar, .review-sidebar, .review-pins-layer, .review-bubble, .review-click-shield, .review-live-toasts, .review-mention-dropdown'
+      '.review-toolbar, .review-sidebar, .review-pins-layer, .review-bubble, .review-click-shield, .review-live-toasts, .review-mention-dropdown, .review-selection-bar, .review-cursor-fix-backdrop'
     );
 
     reviewNodes.forEach((node) => {
@@ -736,7 +818,15 @@
     const btn = document.getElementById('review-toggle-mode');
     document.body.classList.toggle('review-comment-mode', state.commentMode);
     btn.classList.toggle('review-btn-active', state.commentMode);
-    btn.textContent = state.commentMode ? '✕ Cancel' : '＋ Add comment';
+    btn.classList.toggle('review-btn-primary', !state.commentMode);
+    setButtonContent(
+      btn,
+      state.commentMode ? 'x' : 'plus',
+      state.commentMode ? 'Cancel' : 'Add comment'
+    );
+    btn.title = state.commentMode
+      ? 'Cancel commenting'
+      : 'Click anywhere on the page to leave a comment';
 
     let shield = document.getElementById('review-click-shield');
     if (state.commentMode) {
@@ -783,13 +873,11 @@
     const user = ReviewAuth.getUser();
     const bubble = el('div', { class: 'review-bubble review-bubble-new', id: 'review-active-bubble' });
 
-    bubble.appendChild(el('div', { class: 'review-bubble-header review-bubble-header-brand' }, [
-      el('div', { class: 'review-bubble-header-left' }, [
-        el('div', { class: 'review-avatar review-avatar-sm' }, [initials(user.name)]),
-        el('span', { class: 'review-bubble-author' }, ['New comment']),
-      ]),
-      el('span', { class: 'review-bubble-hint' }, ['@ to tag']),
-    ]));
+    bubble.appendChild(buildBubbleHeader({
+      authorName: user.name,
+      title: 'New comment',
+      trailing: el('span', { class: 'review-bubble-hint' }, ['@ to tag']),
+    }));
 
     const textarea = el('textarea', {
       class: 'review-textarea',
@@ -811,7 +899,7 @@
             closeBubble();
             toggleCommentMode();
           },
-        }, ['Cancel']),
+        }, btnContent('x', 'Cancel', 14)),
         el('button', {
           type: 'button',
           class: 'review-btn review-btn-primary',
@@ -820,7 +908,7 @@
             e.stopPropagation();
             submitComment(textarea);
           },
-        }, ['Post comment']),
+        }, btnContent('check', 'Post comment', 14)),
       ]),
     ]);
 
@@ -828,6 +916,7 @@
     bubble.addEventListener('click', (e) => e.stopPropagation());
     bubble.addEventListener('mousedown', (e) => e.stopPropagation());
     document.body.appendChild(bubble);
+    enableBubbleDrag(bubble);
     positionBubble(bubble, clientX, clientY);
     setupMentions(textarea, tagPreview);
     textarea.addEventListener('input', () => updateTagPreview(textarea, tagPreview));
@@ -865,16 +954,16 @@
     const btn = document.getElementById('review-post-btn');
     if (btn) {
       btn.disabled = true;
-      btn.textContent = 'Posting…';
+      setButtonContent(btn, 'check', 'Posting…', 14);
     }
 
     const tags = parseTags(text);
 
     try {
-      if (btn) btn.textContent = 'Capturing…';
+      if (btn) setButtonContent(btn, 'camera', 'Capturing…', 14);
       const screenshotBlob = await captureViewportScreenshot().catch(() => null);
 
-      if (btn) btn.textContent = 'Posting…';
+      if (btn) setButtonContent(btn, 'check', 'Posting…', 14);
 
       const res = await fetch('/api/comments', {
         method: 'POST',
@@ -914,7 +1003,7 @@
       alert(err.message || 'Failed to post comment');
       if (btn) {
         btn.disabled = false;
-        btn.textContent = 'Post comment';
+        setButtonContent(btn, 'check', 'Post comment', 14);
       }
     }
   }
@@ -1090,22 +1179,51 @@
     layer.innerHTML = '';
     layer.style.height = `${document.documentElement.scrollHeight}px`;
 
+    // Drop selections that no longer exist / are resolved
+    const openIds = new Set(pageComments().map((c) => c.id));
+    [...state.selectedIds].forEach((id) => {
+      if (!openIds.has(id)) state.selectedIds.delete(id);
+    });
+
     const comments = pageComments();
     comments.forEach((c, i) => {
       const docW = document.documentElement.scrollWidth;
       const docH = document.documentElement.scrollHeight;
       const left = (c.x / 100) * docW;
       const top = (c.y / 100) * docH;
+      const isSelected = state.selectedIds.has(c.id);
+
+      const selectBtn = el('button', {
+        type: 'button',
+        class: `review-pin-select${isSelected ? ' is-on' : ''}`,
+        title: isSelected ? 'Deselect' : 'Select for Fix with Cursor',
+        'aria-label': isSelected ? 'Deselect comment' : 'Select comment',
+        'aria-pressed': isSelected ? 'true' : 'false',
+        onclick: (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          toggleCommentSelected(c.id);
+        },
+      }, [isSelected ? icon('check', 12) : null].filter(Boolean));
 
       const pin = el('div', {
-        class: `review-pin${state.highlightId === c.id ? ' highlight' : ''}`,
+        class: [
+          'review-pin',
+          state.highlightId === c.id ? 'highlight' : '',
+          isSelected ? 'selected' : '',
+        ].filter(Boolean).join(' '),
         style: `left:${left}px;top:${top}px`,
         onclick: (e) => {
           e.stopPropagation();
+          if (e.metaKey || e.ctrlKey || e.shiftKey) {
+            toggleCommentSelected(c.id);
+            return;
+          }
           openViewBubble(c);
         },
         'data-id': c.id,
       }, [
+        selectBtn,
         el('div', { class: 'review-pin-dot' }, [
           el('span', { class: 'review-pin-number' }, [String(i + 1)]),
         ]),
@@ -1115,6 +1233,125 @@
       ].filter(Boolean));
 
       layer.appendChild(pin);
+    });
+
+    renderSelectionBar();
+  }
+
+  function toggleCommentSelected(id) {
+    if (state.selectedIds.has(id)) state.selectedIds.delete(id);
+    else state.selectedIds.add(id);
+    renderPins();
+  }
+
+  function clearSelection() {
+    state.selectedIds.clear();
+    renderPins();
+  }
+
+  function getSelectedComments() {
+    return state.comments.filter((c) => state.selectedIds.has(c.id) && !c.resolved);
+  }
+
+  function ensureSelectionBar() {
+    if (document.getElementById('review-selection-bar')) return;
+
+    const bar = el('div', { class: 'review-selection-bar', id: 'review-selection-bar' }, [
+      el('span', { class: 'review-selection-count', id: 'review-selection-count' }, ['0 selected']),
+      el('div', { class: 'review-selection-actions' }, [
+        el('button', {
+          type: 'button',
+          class: 'review-btn',
+          onclick: (e) => {
+            e.stopPropagation();
+            clearSelection();
+          },
+        }, btnContent('x', 'Clear', 14)),
+        el('button', {
+          type: 'button',
+          class: 'review-btn review-btn-fix',
+          id: 'review-fix-selected',
+          onclick: (e) => {
+            e.stopPropagation();
+            fixSelectedWithCursor(e.currentTarget);
+          },
+        }, btnContent('sparkle', 'Fix selected', 14)),
+      ]),
+    ]);
+    document.body.appendChild(bar);
+  }
+
+  function renderSelectionBar() {
+    ensureSelectionBar();
+    const bar = document.getElementById('review-selection-bar');
+    const count = document.getElementById('review-selection-count');
+    const n = getSelectedComments().length;
+    if (count) count.textContent = `${n} selected`;
+    if (bar) bar.classList.toggle('open', n > 0);
+  }
+
+  function buildBubbleHeader({ authorName, title, trailing }) {
+    const closeBtn = el('button', {
+      type: 'button',
+      class: 'review-bubble-close',
+      'aria-label': 'Close',
+      title: 'Close',
+      onclick: (e) => {
+        e.stopPropagation();
+        closeBubble();
+      },
+    }, [icon('x', 16)]);
+
+    return el('div', {
+      class: 'review-bubble-header review-bubble-header-brand review-bubble-drag-handle',
+    }, [
+      el('div', { class: 'review-bubble-header-left' }, [
+        el('div', { class: 'review-avatar review-avatar-sm' }, [initials(authorName)]),
+        el('span', { class: 'review-bubble-author' }, [title || authorName]),
+      ]),
+      el('div', { class: 'review-bubble-header-right' }, [
+        trailing || null,
+        closeBtn,
+      ].filter(Boolean)),
+    ]);
+  }
+
+  function enableBubbleDrag(bubble) {
+    const handle = bubble.querySelector('.review-bubble-drag-handle');
+    if (!handle) return;
+
+    handle.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest('button, a, input, textarea, .review-bubble-close')) return;
+
+      const rect = bubble.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const origLeft = rect.left;
+      const origTop = rect.top;
+      bubble.classList.add('is-dragging');
+      e.preventDefault();
+
+      const onMove = (ev) => {
+        const pad = 8;
+        let left = origLeft + (ev.clientX - startX);
+        let top = origTop + (ev.clientY - startY);
+        const maxLeft = Math.max(pad, window.innerWidth - bubble.offsetWidth - pad);
+        const maxTop = Math.max(pad, window.innerHeight - 48);
+        left = Math.min(Math.max(pad, left), maxLeft);
+        top = Math.min(Math.max(pad, top), maxTop);
+        bubble.style.left = `${left}px`;
+        bubble.style.top = `${top}px`;
+      };
+
+      const onUp = () => {
+        bubble.classList.remove('is-dragging');
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
     });
   }
 
@@ -1131,16 +1368,14 @@
       id: 'review-active-bubble',
     });
 
-    bubble.appendChild(el('div', { class: 'review-bubble-header review-bubble-header-brand' }, [
-      el('div', { class: 'review-bubble-header-left' }, [
-        el('div', { class: 'review-avatar review-avatar-sm' }, [initials(fresh.authorName)]),
-        el('span', { class: 'review-bubble-author' }, [fresh.authorName]),
-      ]),
-      el('span', { class: 'review-bubble-time' }, [
+    bubble.appendChild(buildBubbleHeader({
+      authorName: fresh.authorName,
+      title: fresh.authorName,
+      trailing: el('span', { class: 'review-bubble-time review-bubble-time-on-dark' }, [
         resolvedPanel ? 'Resolved · ' : '',
         formatTime(fresh.createdAt),
       ]),
-    ]));
+    }));
 
     const body = el('div', { class: 'review-bubble-body' });
     body.appendChild(buildCommentTextEl(fresh.text, fresh.tags));
@@ -1184,7 +1419,7 @@
           e.stopPropagation();
           submitReply(fresh.id, replyTextarea);
         },
-      }, ['Post reply']),
+      }, btnContent('reply', 'Post reply', 14)),
     ]));
 
     const canReply = !showReplyForm && !replies.length;
@@ -1194,6 +1429,7 @@
     bubble.addEventListener('click', (e) => e.stopPropagation());
     bubble.addEventListener('mousedown', (e) => e.stopPropagation());
     document.body.appendChild(bubble);
+    enableBubbleDrag(bubble);
 
     if (resolvedPanel) {
       positionBubbleResolved(bubble);
@@ -1290,7 +1526,7 @@
     const btn = document.getElementById('review-reply-btn');
     if (btn) {
       btn.disabled = true;
-      btn.textContent = 'Posting…';
+      setButtonContent(btn, 'reply', 'Posting…', 14);
     }
 
     const tags = parseTags(text);
@@ -1319,7 +1555,7 @@
       alert(err.message || 'Failed to post reply');
       if (btn) {
         btn.disabled = false;
-        btn.textContent = 'Post reply';
+        setButtonContent(btn, 'reply', 'Post reply', 14);
       }
     }
   }
@@ -1364,15 +1600,32 @@
     const count = document.getElementById('review-count');
     if (!list) return;
 
+    const openItems = openComments();
+    const resolvedItems = resolvedComments();
     const items = sidebarComments();
-    count.textContent = String(items.length);
+    if (count) count.textContent = String(items.length);
 
-    const emptyMessage = state.sidebarTab === 'resolved'
-      ? 'No resolved comments yet.<br>Resolve a comment to move it here.'
-      : 'No open comments.<br>Click <strong>Add comment</strong> to leave feedback.';
+    const openCountEl = document.getElementById('review-tab-open-count');
+    const resolvedCountEl = document.getElementById('review-tab-resolved-count');
+    if (openCountEl) openCountEl.textContent = String(openItems.length);
+    if (resolvedCountEl) resolvedCountEl.textContent = String(resolvedItems.length);
 
     if (!items.length) {
-      list.innerHTML = `<div class="review-sidebar-empty">${emptyMessage}</div>`;
+      list.innerHTML = '';
+      list.appendChild(el('div', { class: 'review-sidebar-empty' }, [
+        icon(state.sidebarTab === 'resolved' ? 'checkCircle' : 'chat', 28),
+        el('p', {}, [
+          state.sidebarTab === 'resolved'
+            ? 'No resolved comments yet.'
+            : 'No open comments yet.',
+        ]),
+        el('span', {}, [
+          state.sidebarTab === 'resolved'
+            ? 'Resolve a thread to archive it here.'
+            : 'Use Add comment, then click anywhere on the page.',
+        ]),
+      ]));
+      updateSidebarActionButtons(openItems.length);
       return;
     }
 
@@ -1382,24 +1635,24 @@
       const textEl = el('div', { class: 'review-sidebar-item-text' });
       appendFormattedCommentText(textEl, c.text, c.tags, true);
 
-      const item = el('div', {
-        class: `review-sidebar-item${state.highlightId === c.id ? ' active' : ''}`,
-        onclick: () => navigateToComment(c),
+      const badges = el('div', { class: 'review-sidebar-item-badges' });
+      if (c.screenshot) {
+        badges.appendChild(el('span', { class: 'review-sidebar-chip' }, [
+          icon('camera', 12),
+          el('span', {}, ['Snapshot']),
+        ]));
+      }
+      if (replyCount) {
+        badges.appendChild(el('span', { class: 'review-sidebar-chip' }, [
+          icon('reply', 12),
+          el('span', {}, [`${replyCount}`]),
+        ]));
+      }
+
+      const actions = el('div', {
+        class: 'review-sidebar-item-actions',
+        onclick: (e) => e.stopPropagation(),
       }, [
-        el('div', { class: 'review-sidebar-item-page' }, [formatPage(c.page)]),
-        textEl,
-        c.screenshot
-          ? el('div', { class: 'review-sidebar-screenshot-badge' }, ['📷 Snapshot saved'])
-          : null,
-        replyCount
-          ? el('div', { class: 'review-sidebar-replies' }, [
-              `${replyCount} ${replyCount === 1 ? 'reply' : 'replies'}`,
-            ])
-          : null,
-        el('div', { class: 'review-sidebar-item-meta' }, [
-          el('span', {}, [c.authorName]),
-          el('span', {}, [formatTime(c.createdAt)]),
-        ]),
         el('button', {
           type: 'button',
           class: 'review-sidebar-prompt-btn',
@@ -1408,7 +1661,7 @@
             e.stopPropagation();
             copyCommentPrompt(c, e.currentTarget);
           },
-        }, ['Cursor prompt']),
+        }, btnContent('copy', 'Prompt', 14)),
         el('button', {
           type: 'button',
           class: 'review-sidebar-fix-btn',
@@ -1417,30 +1670,60 @@
             e.stopPropagation();
             fixCommentWithCursor(c, e.currentTarget);
           },
-        }, ['Fix']),
+        }, btnContent('sparkle', 'Fix', 14)),
+      ]);
+
+      const item = el('div', {
+        class: `review-sidebar-item${state.highlightId === c.id ? ' active' : ''}${state.selectedIds.has(c.id) ? ' selected' : ''}`,
+        onclick: () => navigateToComment(c),
+      }, [
+        el('div', { class: 'review-sidebar-item-top' }, [
+          el('div', { class: 'review-sidebar-item-page' }, [formatPage(c.page)]),
+          el('span', { class: 'review-sidebar-item-time' }, [formatTime(c.createdAt)]),
+        ]),
+        textEl,
+        badges.childNodes.length ? badges : null,
+        el('div', { class: 'review-sidebar-item-meta' }, [
+          el('span', { class: 'review-sidebar-item-author' }, [c.authorName]),
+        ]),
+        !c.resolved ? actions : null,
       ].filter(Boolean));
       list.appendChild(item);
     });
 
-    const openCount = state.comments.filter((c) => !c.resolved).length;
-    const canFix = Boolean(project.repoUrl || project.localPath || project.type === 'github');
+    updateSidebarActionButtons(openItems.length);
+  }
 
+  function updateSidebarActionButtons(openCount) {
+    const canFix = Boolean(project.repoUrl || project.localPath || project.type === 'github');
     const copyAllBtn = document.getElementById('review-copy-all-prompts');
+    const fixAllBtn = document.getElementById('review-fix-all');
+
     if (copyAllBtn) {
       copyAllBtn.disabled = openCount === 0;
-      copyAllBtn.textContent =
+      setButtonContent(
+        copyAllBtn,
+        'copy',
+        openCount === 0 ? 'No prompts' : `Copy ${openCount}`
+      );
+      copyAllBtn.title =
         openCount === 0
-          ? 'No open comments'
-          : `Copy all ${openCount} as Cursor prompt${openCount === 1 ? '' : 's'}`;
+          ? 'No open comments to copy'
+          : `Copy Cursor prompts for ${openCount} open comment${openCount === 1 ? '' : 's'}`;
     }
-    const fixAllBtn = document.getElementById('review-fix-all');
+
     if (fixAllBtn) {
       fixAllBtn.disabled = openCount === 0 || !canFix;
-      fixAllBtn.textContent = !canFix
-        ? 'Set repo in Settings to Fix'
+      setButtonContent(
+        fixAllBtn,
+        'sparkle',
+        !canFix ? 'Set repo' : openCount === 0 ? 'Nothing to fix' : `Fix ${openCount}`
+      );
+      fixAllBtn.title = !canFix
+        ? 'Add a GitHub repo in project Settings to enable Fix with Cursor'
         : openCount === 0
-          ? 'No open comments'
-          : `Fix all ${openCount} with Cursor`;
+          ? 'No open comments to fix'
+          : `Start a Cursor agent for ${openCount} open comment${openCount === 1 ? '' : 's'}`;
     }
   }
 
@@ -1486,6 +1769,7 @@
 
   const cursorFixDraft = {
     commentId: null,
+    commentIds: null,
     scope: 'comment',
     triggerBtn: null,
   };
@@ -1507,8 +1791,9 @@
         el('button', {
           type: 'button',
           class: 'review-cursor-fix-close',
+          'aria-label': 'Close',
           onclick: closeCursorFixModal,
-        }, ['×']),
+        }, [icon('x', 16)]),
       ]),
       el('p', { class: 'review-cursor-fix-sub', id: 'review-cursor-fix-sub' }, [
         'Review and edit the prompt before sending it to Cursor.',
@@ -1556,13 +1841,13 @@
           type: 'button',
           class: 'review-btn',
           onclick: closeCursorFixModal,
-        }, ['Cancel']),
+        }, btnContent('x', 'Cancel', 14)),
         el('button', {
           type: 'button',
           class: 'review-btn review-btn-fix',
           id: 'review-cursor-fix-send',
           onclick: submitCursorFixFromModal,
-        }, ['Send to Cursor']),
+        }, btnContent('sparkle', 'Send to Cursor', 14)),
       ]),
     ]);
 
@@ -1574,6 +1859,7 @@
     const modal = document.getElementById('review-cursor-fix-modal');
     if (modal) modal.classList.remove('open');
     cursorFixDraft.commentId = null;
+    cursorFixDraft.commentIds = null;
     cursorFixDraft.scope = 'comment';
     cursorFixDraft.triggerBtn = null;
     const err = document.getElementById('review-cursor-fix-error');
@@ -1583,7 +1869,7 @@
     }
   }
 
-  function openCursorFixModal({ comment, scope }) {
+  function openCursorFixModal({ comment, scope, commentIds }) {
     ensureCursorFixModal();
     if (!window.ReviewPrompts) {
       alert('Prompt helper failed to load');
@@ -1591,14 +1877,24 @@
     }
 
     cursorFixDraft.commentId = comment?.id || null;
-    cursorFixDraft.scope = scope || (comment ? 'comment' : 'all');
-    cursorFixDraft.triggerBtn = null;
+    cursorFixDraft.commentIds = commentIds || null;
+    cursorFixDraft.scope = scope || (commentIds?.length ? 'selected' : comment ? 'comment' : 'all');
 
     let promptText = '';
+    let selectedList = [];
     if (cursorFixDraft.scope === 'all') {
       promptText = ReviewPrompts.buildAllOpenPrompts(state.comments, project);
       if (!promptText) {
         showPromptToast('No open comments to fix');
+        return;
+      }
+    } else if (cursorFixDraft.scope === 'selected') {
+      selectedList = (commentIds || [])
+        .map((id) => state.comments.find((c) => c.id === id))
+        .filter((c) => c && !c.resolved);
+      promptText = ReviewPrompts.buildCommentsPrompts(selectedList, project);
+      if (!promptText) {
+        showPromptToast('No selected comments to fix');
         return;
       }
     } else if (comment) {
@@ -1613,14 +1909,21 @@
     const isCloud = preferredFixMode() === 'cloud';
 
     if (title) {
-      title.textContent =
-        cursorFixDraft.scope === 'all' ? 'Fix all open comments' : 'Fix with Cursor';
+      if (cursorFixDraft.scope === 'all') title.textContent = 'Fix all open comments';
+      else if (cursorFixDraft.scope === 'selected') {
+        title.textContent = `Fix ${selectedList.length} selected comment${selectedList.length === 1 ? '' : 's'}`;
+      } else {
+        title.textContent = 'Fix with Cursor';
+      }
     }
     if (sub) {
-      sub.textContent =
-        cursorFixDraft.scope === 'all'
-          ? 'Edit the combined prompt for all open comments, then send to Cursor.'
-          : 'Review and edit the prompt for this comment before sending it to Cursor.';
+      if (cursorFixDraft.scope === 'all') {
+        sub.textContent = 'Edit the combined prompt for all open comments, then send to Cursor.';
+      } else if (cursorFixDraft.scope === 'selected') {
+        sub.textContent = 'Edit the prompt for your selected comments, then send to Cursor as one agent.';
+      } else {
+        sub.textContent = 'Review and edit the prompt for this comment before sending it to Cursor.';
+      }
     }
     if (textarea) textarea.value = promptText;
 
@@ -1650,6 +1953,19 @@
     openCursorFixModal({ scope: 'all' });
   }
 
+  function fixSelectedWithCursor(btn) {
+    const selected = getSelectedComments();
+    if (!selected.length) {
+      showPromptToast('Select comments on the page first');
+      return;
+    }
+    cursorFixDraft.triggerBtn = btn || null;
+    openCursorFixModal({
+      scope: 'selected',
+      commentIds: selected.map((c) => c.id),
+    });
+  }
+
   async function submitCursorFixFromModal() {
     const textarea = document.getElementById('review-cursor-fix-text');
     const errEl = document.getElementById('review-cursor-fix-error');
@@ -1675,7 +1991,7 @@
 
     if (sendBtn) {
       sendBtn.disabled = true;
-      sendBtn.textContent = 'Sending…';
+      setButtonContent(sendBtn, 'sparkle', 'Sending…', 14);
     }
 
     const controller = new AbortController();
@@ -1690,6 +2006,9 @@
       };
       if (cursorFixDraft.scope === 'all') {
         payload.scope = 'all';
+      } else if (cursorFixDraft.scope === 'selected' && cursorFixDraft.commentIds?.length) {
+        payload.scope = 'selected';
+        payload.commentIds = cursorFixDraft.commentIds;
       } else if (cursorFixDraft.commentId) {
         payload.commentId = cursorFixDraft.commentId;
       }
@@ -1708,7 +2027,9 @@
       if (!res.ok) throw new Error(data.error || 'Failed to start agent');
 
       const triggerBtn = cursorFixDraft.triggerBtn;
+      const wasSelected = cursorFixDraft.scope === 'selected';
       closeCursorFixModal();
+      if (wasSelected) clearSelection();
       showPromptToast(data.message || 'Cursor agent started');
       if (data.agentUrl) window.open(data.agentUrl, '_blank', 'noopener');
 
@@ -1728,7 +2049,7 @@
       clearTimeout(timer);
       if (sendBtn) {
         sendBtn.disabled = false;
-        sendBtn.textContent = 'Send to Cursor';
+        setButtonContent(sendBtn, 'sparkle', 'Send to Cursor', 14);
       }
     }
   }
@@ -1893,24 +2214,6 @@
       .join('')
       .slice(0, 2)
       .toUpperCase();
-  }
-
-  /* Phosphor Icons (bold, 256x256) — inlined so the overlay stays dependency-free */
-  const PHOSPHOR_PATHS = {
-    reply: 'M236,200a12,12,0,0,1-24,0,84.09,84.09,0,0,0-84-84H61l27.52,27.51a12,12,0,0,1-17,17l-48-48a12,12,0,0,1,0-17l48-48a12,12,0,0,1,17,17L61,92h67A108.12,108.12,0,0,1,236,200Z',
-    copy: 'M216,28H88A12,12,0,0,0,76,40V76H40A12,12,0,0,0,28,88V216a12,12,0,0,0,12,12H168a12,12,0,0,0,12-12V180h36a12,12,0,0,0,12-12V40A12,12,0,0,0,216,28ZM156,204H52V100H156Zm48-48H180V88a12,12,0,0,0-12-12H100V52H204Z',
-    sparkle: 'M199,125.31l-49.88-18.39L130.69,57a19.92,19.92,0,0,0-37.38,0L74.92,106.92,25,125.31a19.92,19.92,0,0,0,0,37.38l49.88,18.39L93.31,231a19.92,19.92,0,0,0,37.38,0l18.39-49.88L199,162.69a19.92,19.92,0,0,0,0-37.38Zm-63.38,35.16a12,12,0,0,0-7.11,7.11L112,212.28l-16.47-44.7a12,12,0,0,0-7.11-7.11L43.72,144l44.7-16.47a12,12,0,0,0,7.11-7.11L112,75.72l16.47,44.7a12,12,0,0,0,7.11,7.11L180.28,144ZM140,40a12,12,0,0,1,12-12h12V16a12,12,0,0,1,24,0V28h12a12,12,0,0,1,0,24H188V64a12,12,0,0,1-24,0V52H152A12,12,0,0,1,140,40ZM252,88a12,12,0,0,1-12,12h-4v4a12,12,0,0,1-24,0v-4h-4a12,12,0,0,1,0-24h4V72a12,12,0,0,1,24,0v4h4A12,12,0,0,1,252,88Z',
-    checkCircle: 'M176.49,95.51a12,12,0,0,1,0,17l-56,56a12,12,0,0,1-17,0l-24-24a12,12,0,1,1,17-17L112,143l47.51-47.52A12,12,0,0,1,176.49,95.51ZM236,128A108,108,0,1,1,128,20,108.12,108.12,0,0,1,236,128Zm-24,0a84,84,0,1,0-84,84A84.09,84.09,0,0,0,212,128Z',
-    reopen: 'M228,128a100,100,0,0,1-98.66,100H128a99.39,99.39,0,0,1-68.62-27.29,12,12,0,0,1,16.48-17.45,76,76,0,1,0-1.57-109c-.13.13-.25.25-.39.37L54.89,92H72a12,12,0,0,1,0,24H24a12,12,0,0,1-12-12V56a12,12,0,0,1,24,0V76.72L57.48,57.06A100,100,0,0,1,228,128Z',
-    trash: 'M216,48H180V36A28,28,0,0,0,152,8H104A28,28,0,0,0,76,36V48H40a12,12,0,0,0,0,24h4V208a20,20,0,0,0,20,20H192a20,20,0,0,0,20-20V72h4a12,12,0,0,0,0-24ZM100,36a4,4,0,0,1,4-4h48a4,4,0,0,1,4,4V48H100Zm88,168H68V72H188ZM116,104v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Zm48,0v64a12,12,0,0,1-24,0V104a12,12,0,0,1,24,0Z',
-  };
-
-  function icon(name, size = 17) {
-    const wrap = el('span', { class: 'review-icon', 'aria-hidden': 'true' });
-    wrap.innerHTML =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" ` +
-      `viewBox="0 0 256 256" fill="currentColor"><path d="${PHOSPHOR_PATHS[name]}"/></svg>`;
-    return wrap;
   }
 
   function el(tag, attrs, children) {
