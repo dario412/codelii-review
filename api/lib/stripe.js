@@ -48,9 +48,19 @@ export function priceId() {
 }
 
 export function siteUrl() {
-  const raw = (process.env.SITE_URL || '').trim().replace(/\/+$/, '');
-  if (!raw) throw new Error('SITE_URL must be set to build Stripe redirect URLs');
-  return raw;
+  const configured = (process.env.SITE_URL || '').trim().replace(/\/+$/, '');
+  if (configured) return configured;
+
+  // Vercel sets VERCEL_URL automatically (no scheme). Prefer SITE_URL in production.
+  const vercel = (process.env.VERCEL_URL || '').trim().replace(/\/+$/, '');
+  if (vercel) {
+    const host = vercel.replace(/^https?:\/\//i, '');
+    return `https://${host}`;
+  }
+
+  throw new Error(
+    'SITE_URL must be set (e.g. https://codelii-review.vercel.app) so Stripe can redirect after checkout'
+  );
 }
 
 /** True when the configured key is a test-mode key. Surfaced in the UI banner. */

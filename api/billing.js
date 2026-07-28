@@ -256,8 +256,16 @@ export async function POST(request) {
     return json({ error: 'Unknown action' }, 400);
   } catch (err) {
     console.error('[billing POST]', action, err);
-    // Stripe error messages are safe to show; anything else stays generic.
-    const message = err?.type?.startsWith('Stripe') ? err.message : 'Billing request failed';
+    // Prefer Stripe's message, then our own config Errors. Never dump internals.
+    const isStripe =
+      typeof err?.type === 'string'
+      && (err.type.startsWith('Stripe') || Boolean(err.rawType));
+    const isConfig =
+      err instanceof Error
+      && /SITE_URL|STRIPE_|Billing is not configured|Blob storage/i.test(err.message);
+    const message = isStripe || isConfig
+      ? err.message
+      : 'Billing request failed';
     return json({ error: message }, 500);
   }
 }
