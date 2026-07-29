@@ -40,46 +40,41 @@
 
   <div class="flash" id="flash" hidden></div>
 
-  <div class="integration-grid" id="integration-grid">
-    <article class="integration-card" id="card-slack">
-      <div class="integration-card-top">
-        <div class="integration-logo slack" aria-hidden="true">
-          <svg width="28" height="28" viewBox="0 0 127 127" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M27.2 80c0 7.3-5.9 13.2-13.2 13.2C6.7 93.2.8 87.3.8 80c0-7.3 5.9-13.2 13.2-13.2h13.2V80zm6.6 0c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V80z" fill="#E01E5A"/>
-            <path d="M47 27.2c-7.3 0-13.2-5.9-13.2-13.2C33.8 6.7 39.7.8 47 .8c7.3 0 13.2 5.9 13.2 13.2v13.2H47zm0 6.6c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H14c-7.3 0-13.2-5.9-13.2-13.2C.8 39.7 6.7 33.8 14 33.8H47z" fill="#36C5F0"/>
-            <path d="M99.8 47c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H99.8V47zm-6.6 0c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V14c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33z" fill="#2EB67D"/>
-            <path d="M80 99.8c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V99.8H80zm0-6.6c-7.3 0-13.2-5.9-13.2-13.2 0-7.3 5.9-13.2 13.2-13.2h33c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H80z" fill="#ECB22E"/>
-          </svg>
+  <div class="integration-section">
+    <div class="section-head">
+      <h2>Notifications</h2>
+      <span class="rule"></span>
+    </div>
+    <div class="integration-grid" id="notify-grid">
+      <article class="integration-card" id="card-slack">
+        <div class="integration-card-top">
+          <div class="integration-logo slack" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 127 127" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M27.2 80c0 7.3-5.9 13.2-13.2 13.2C6.7 93.2.8 87.3.8 80c0-7.3 5.9-13.2 13.2-13.2h13.2V80zm6.6 0c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V80z" fill="#E01E5A"/>
+              <path d="M47 27.2c-7.3 0-13.2-5.9-13.2-13.2C33.8 6.7 39.7.8 47 .8c7.3 0 13.2 5.9 13.2 13.2v13.2H47zm0 6.6c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H14c-7.3 0-13.2-5.9-13.2-13.2C.8 39.7 6.7 33.8 14 33.8H47z" fill="#36C5F0"/>
+              <path d="M99.8 47c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H99.8V47zm-6.6 0c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V14c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33z" fill="#2EB67D"/>
+              <path d="M80 99.8c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V99.8H80zm0-6.6c-7.3 0-13.2-5.9-13.2-13.2 0-7.3 5.9-13.2 13.2-13.2h33c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H80z" fill="#ECB22E"/>
+            </svg>
+          </div>
+          <div class="integration-meta">
+            <h2>Slack</h2>
+            <p>Get review comments, assignments, and page approvals in a Slack channel.</p>
+          </div>
+          <span class="integration-status" id="slack-status">Checking…</span>
         </div>
-        <div class="integration-meta">
-          <h2>Slack</h2>
-          <p>Get review comments, assignments, and page approvals in a Slack channel.</p>
-        </div>
-        <span class="integration-status" id="slack-status">Checking…</span>
-      </div>
-      <div class="integration-details" id="slack-details" hidden></div>
-      <div class="integration-actions" id="slack-actions">
-        <button class="btn btn-accent" type="button" id="slack-connect">
-          <span data-label>Connect Slack</span>
-        </button>
-      </div>
-    </article>
+        <div class="integration-details" id="slack-details" hidden></div>
+        <div class="integration-actions" id="slack-actions"></div>
+      </article>
+    </div>
+  </div>
 
-    <article class="integration-card is-soon" id="card-github">
-      <div class="integration-card-top">
-        <div class="integration-logo" aria-hidden="true">
-          <span data-icon="github" data-icon-size="26"></span>
-        </div>
-        <div class="integration-meta">
-          <h2>GitHub</h2>
-          <p>Sync comments to issues and keep Fix with Cursor linked to your repos.</p>
-        </div>
-        <span class="integration-status soon">Coming soon</span>
-      </div>
-      <div class="integration-actions">
-        <button class="btn" type="button" disabled><span data-label>Coming soon</span></button>
-      </div>
-    </article>
+  <div class="integration-section">
+    <div class="section-head">
+      <h2>Project management</h2>
+      <span class="rule"></span>
+    </div>
+    <p class="integration-section-lede">Connect your PM tool once, then turn any review comment into a task from the comment bubble.</p>
+    <div class="integration-grid" id="pm-grid"></div>
   </div>
 </main>
 
@@ -148,25 +143,25 @@
     });
   }
 
-  async function startSlackConnect(btn) {
+  async function startConnect(provider, btn, defaultLabel) {
     if (btn) {
       btn.disabled = true;
-      setLabel(btn, 'Opening Slack…');
+      setLabel(btn, 'Opening…');
     }
     try {
       const res = await fetch('/api/integrations', {
         method: 'POST',
         headers: ReviewAuth.headers(),
-        body: JSON.stringify({ action: 'connect', provider: 'slack' }),
+        body: JSON.stringify({ action: 'connect', provider }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.url) throw new Error(data.error || 'Could not start Slack connect');
+      if (!res.ok || !data.url) throw new Error(data.error || 'Could not start connect');
       window.location.href = data.url;
     } catch (err) {
-      showFlash('err', err.message || 'Could not start Slack connect');
+      showFlash('err', err.message || 'Could not start connect');
       if (btn) {
         btn.disabled = false;
-        setLabel(btn, btn.dataset.defaultLabel || 'Connect Slack');
+        setLabel(btn, defaultLabel || 'Connect');
       }
     }
   }
@@ -186,7 +181,7 @@
       card.classList.remove('is-connected');
       const note = document.createElement('p');
       note.className = 'integration-hint';
-      note.textContent = 'Ask your admin to add SLACK_CLIENT_ID and SLACK_CLIENT_SECRET, then you can connect in one click.';
+      note.textContent = 'Add SLACK_CLIENT_ID and SLACK_CLIENT_SECRET on the server, then connect in one click.';
       actions.appendChild(note);
       return;
     }
@@ -231,16 +226,14 @@
       disconnect.className = 'btn';
       disconnect.innerHTML = '<span data-label>Disconnect</span>';
       disconnect.onclick = async () => {
-        if (!confirm('Disconnect Slack? You will stop receiving review notifications there.')) return;
-        disconnect.disabled = true;
+        if (!confirm('Disconnect Slack?')) return;
         const res = await fetch('/api/integrations?provider=slack', {
           method: 'DELETE',
           headers: ReviewAuth.headers(),
         });
-        const data = await res.json().catch(() => ({}));
         if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
           showFlash('err', data.error || 'Could not disconnect');
-          disconnect.disabled = false;
           return;
         }
         showFlash('ok', 'Slack disconnected.');
@@ -250,9 +243,8 @@
       const reconnect = document.createElement('button');
       reconnect.type = 'button';
       reconnect.className = 'btn btn-accent';
-      reconnect.dataset.defaultLabel = 'Change channel';
       reconnect.innerHTML = '<span data-label>Change channel</span>';
-      reconnect.onclick = () => startSlackConnect(reconnect);
+      reconnect.onclick = () => startConnect('slack', reconnect, 'Change channel');
 
       actions.append(testBtn, reconnect, disconnect);
       return;
@@ -261,19 +253,136 @@
     status.textContent = 'Not connected';
     status.className = 'integration-status';
     card.classList.remove('is-connected');
-
     const connect = document.createElement('button');
     connect.type = 'button';
-    connect.className = 'btn btn-accent slack-connect-btn';
-    connect.dataset.defaultLabel = 'Connect Slack';
+    connect.className = 'btn btn-accent';
     connect.innerHTML = '<span data-label>Connect Slack</span>';
-    connect.onclick = () => startSlackConnect(connect);
+    connect.onclick = () => startConnect('slack', connect, 'Connect Slack');
     actions.appendChild(connect);
-
     const hint = document.createElement('p');
     hint.className = 'integration-hint';
-    hint.textContent = 'One click — pick a channel in Slack, and Codelii will post review updates there.';
+    hint.textContent = 'One click — pick a channel, and Codelii posts review updates there.';
     actions.appendChild(hint);
+  }
+
+  function paintPmGrid(integrations) {
+    const grid = document.getElementById('pm-grid');
+    grid.innerHTML = '';
+    const order = ['asana', 'clickup', 'linear', 'monday', 'jira', 'notion', 'github'];
+    order.forEach((id) => {
+      const p = integrations[id];
+      if (!p) return;
+      const card = document.createElement('article');
+      card.className = `integration-card${p.connected ? ' is-connected' : ''}${p.comingSoon ? ' is-soon' : ''}`;
+      card.id = `card-${id}`;
+
+      const top = document.createElement('div');
+      top.className = 'integration-card-top';
+
+      const logo = document.createElement('div');
+      logo.className = 'integration-logo brand';
+      logo.style.setProperty('--logo-accent', p.color || '#B8FF54');
+      const mark = Icons.brand?.(id, 26) || (id === 'github' ? Icons.svg('github', 26) : '');
+      if (mark) logo.innerHTML = mark;
+      else logo.textContent = String(p.name || '?').slice(0, 1).toUpperCase();
+
+      const meta = document.createElement('div');
+      meta.className = 'integration-meta';
+      meta.innerHTML = `<h2></h2><p></p>`;
+      meta.querySelector('h2').textContent = p.name;
+      meta.querySelector('p').textContent = p.blurb || '';
+
+      const status = document.createElement('span');
+      status.className = 'integration-status';
+      if (p.comingSoon) {
+        status.classList.add('soon');
+        status.textContent = 'Coming soon';
+      } else if (!p.available && id !== 'github') {
+        status.classList.add('warn');
+        status.textContent = 'Not configured';
+      } else if (p.connected) {
+        status.classList.add('on');
+        status.textContent = 'Connected';
+      } else if (id === 'github') {
+        status.textContent = 'In review';
+      } else {
+        status.textContent = 'Not connected';
+      }
+
+      top.append(logo, meta, status);
+
+      const details = document.createElement('div');
+      details.className = 'integration-details';
+      details.hidden = true;
+      if (p.connected && p.destination) {
+        details.hidden = false;
+        details.textContent = `Tasks go to ${p.destination}`;
+      } else if (id === 'github' && p.note) {
+        details.hidden = false;
+        details.textContent = p.note;
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'integration-actions';
+
+      if (p.comingSoon) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn';
+        btn.disabled = true;
+        btn.innerHTML = '<span data-label>Coming soon</span>';
+        actions.appendChild(btn);
+      } else if (id === 'github') {
+        const hint = document.createElement('p');
+        hint.className = 'integration-hint';
+        hint.textContent = 'Use “Create issue” on a comment when a GitHub repo is linked.';
+        actions.appendChild(hint);
+      } else if (!p.available) {
+        const hint = document.createElement('p');
+        hint.className = 'integration-hint';
+        hint.textContent = `Add ${String(id).toUpperCase()}_CLIENT_ID and _CLIENT_SECRET on the server to enable one-click connect.`;
+        actions.appendChild(hint);
+      } else if (p.connected) {
+        const reconnect = document.createElement('button');
+        reconnect.type = 'button';
+        reconnect.className = 'btn btn-accent';
+        reconnect.innerHTML = '<span data-label>Reconnect</span>';
+        reconnect.onclick = () => startConnect(id, reconnect, 'Reconnect');
+        const disconnect = document.createElement('button');
+        disconnect.type = 'button';
+        disconnect.className = 'btn';
+        disconnect.innerHTML = '<span data-label>Disconnect</span>';
+        disconnect.onclick = async () => {
+          if (!confirm(`Disconnect ${p.name}?`)) return;
+          const res = await fetch(`/api/integrations?provider=${encodeURIComponent(id)}`, {
+            method: 'DELETE',
+            headers: ReviewAuth.headers(),
+          });
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            showFlash('err', data.error || 'Could not disconnect');
+            return;
+          }
+          showFlash('ok', `${p.name} disconnected.`);
+          await load();
+        };
+        actions.append(reconnect, disconnect);
+      } else {
+        const connect = document.createElement('button');
+        connect.type = 'button';
+        connect.className = 'btn btn-accent';
+        connect.innerHTML = `<span data-label>Connect ${p.name}</span>`;
+        connect.onclick = () => startConnect(id, connect, `Connect ${p.name}`);
+        actions.appendChild(connect);
+        const hint = document.createElement('p');
+        hint.className = 'integration-hint';
+        hint.textContent = 'Then use Create task on any review comment.';
+        actions.appendChild(hint);
+      }
+
+      card.append(top, details, actions);
+      grid.appendChild(card);
+    });
   }
 
   async function load() {
@@ -285,24 +394,40 @@
     }
     const data = await res.json();
     paintSlack(data.integrations?.slack);
+    paintPmGrid(data.integrations || {});
   }
 
   (function handleReturn() {
     const params = new URLSearchParams(location.search);
     const slack = params.get('slack');
-    if (!slack) return;
+    const pm = params.get('pm');
     const reason = params.get('reason') || '';
-    const messages = {
-      connected: ['ok', 'Slack connected. You’ll get review notifications in the channel you picked.'],
-      denied: ['err', 'Slack connection was cancelled.'],
-      not_configured: ['err', 'Slack OAuth is not configured on this server yet.'],
-      forbidden: ['err', 'Your account cannot connect integrations.'],
-      invalid_state: ['err', 'That Slack link expired. Try Connect again.'],
-      error: ['err', reason ? `Could not connect Slack: ${reason}` : 'Could not connect Slack. Try again.'],
-    };
-    const msg = messages[slack];
-    if (msg) showFlash(msg[0], msg[1]);
-    history.replaceState({}, '', '/integrations.html');
+    const provider = params.get('provider') || '';
+    if (slack) {
+      const messages = {
+        connected: ['ok', 'Slack connected. You’ll get review notifications in the channel you picked.'],
+        denied: ['err', 'Slack connection was cancelled.'],
+        not_configured: ['err', 'Slack OAuth is not configured on this server yet.'],
+        forbidden: ['err', 'Your account cannot connect integrations.'],
+        invalid_state: ['err', 'That Slack link expired. Try Connect again.'],
+        error: ['err', reason ? `Could not connect Slack: ${reason}` : 'Could not connect Slack. Try again.'],
+      };
+      const msg = messages[slack];
+      if (msg) showFlash(msg[0], msg[1]);
+    }
+    if (pm) {
+      const label = provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : 'PM tool';
+      const messages = {
+        connected: ['ok', `${label} connected. Open a review comment and click Create task.`],
+        denied: ['err', 'Connection was cancelled.'],
+        forbidden: ['err', 'Your account cannot connect integrations.'],
+        invalid_state: ['err', 'That link expired. Try Connect again.'],
+        error: ['err', reason ? `Could not connect: ${reason}` : 'Could not connect. Try again.'],
+      };
+      const msg = messages[pm];
+      if (msg) showFlash(msg[0], msg[1]);
+    }
+    if (slack || pm) history.replaceState({}, '', '/integrations.html');
   })();
 
   load();

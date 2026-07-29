@@ -1,6 +1,5 @@
 /**
- * Integrations hub — status, disconnect, test notification.
- * Provider OAuth start/callback live in sibling routes.
+ * Integrations hub — Slack + project-management providers.
  */
 import { getCore, saveCore } from './lib/store.js';
 import { getUser } from './lib/auth.js';
@@ -12,6 +11,15 @@ import {
   createSlackOAuthState,
   buildSlackAuthorizeUrl,
 } from './lib/slack.js';
+import {
+  listPmProviders,
+  publicPmStatus,
+  clearPmConnection,
+  isPmConfigured,
+  createPmOAuthState,
+  buildPmAuthorizeUrl,
+  PM_PROVIDERS,
+} from './lib/pm.js';
 
 export async function OPTIONS() {
   return corsOptions('GET, POST, DELETE, OPTIONS');
@@ -26,17 +34,30 @@ export async function GET(request) {
   if (!account) return json({ error: 'Account not found' }, 401);
   if (account.guest) return json({ error: 'Guests cannot manage integrations' }, 403);
 
+  const pm = {};
+  for (const p of listPmProviders()) {
+    pm[p.id] = publicPmStatus(account, p.id);
+  }
+
   return json({
     integrations: {
       slack: {
         available: isSlackOAuthConfigured(),
         ...publicSlackStatus(account),
+        category: 'notify',
+        name: 'Slack',
+        blurb: 'Get review comments, assignments, and page approvals in a Slack channel.',
       },
-      // Placeholder for future providers (Linear, Notion, etc.)
+      ...pm,
       github: {
-        available: false,
+        id: 'github',
+        name: 'GitHub Issues',
+        blurb: 'Comment → GitHub issue is available from the review toolbar when a repo is linked.',
+        category: 'pm',
+        available: true,
         connected: false,
-        comingSoon: true,
+        comingSoon: false,
+        note: 'Uses GITHUB_TOKEN on the server — create issues from any comment in review mode.',
       },
     },
   });
@@ -83,6 +104,17 @@ export async function POST(request) {
     return json({ ok: true });
   }
 
+  // PM connect
+  if (action === 'connect' && PM_PROVIDERS[provider]) {
+    const meta = PM_PROVIDERS[provider];
+    if (meta.comingSoon) return json({ error: `${meta.name} is coming soon` }, 503);
+    if (!isPmConfigured(provider)) {
+      return json({ error: `${meta.name} OAuth is not configured on this server` }, 503);
+    }
+    const state = await createPmOAuthState(account.id, provider);
+    return json({ url: buildPmAuthorizeUrl(provider, state) });
+  }
+
   return json({ error: 'Unknown action' }, 400);
 }
 
@@ -102,6 +134,12 @@ export async function DELETE(request) {
     delete account.slack;
     await saveCore(core);
     return json({ ok: true, slack: { connected: false } });
+  }
+
+  if (PM_PROVIDERS[provider]) {
+    clearPmConnection(account, provider);
+    await saveCore(core);
+    return json({ ok: true, [provider]: { connected: false } });
   }
 
   return json({ error: 'Unknown provider' }, 400);

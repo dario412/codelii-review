@@ -41,6 +41,7 @@
   const canUseCursorTools = project.canUseCursorTools === true;
   // Project owner can delete any comment and hide/unhide. Server enforces this.
   const isOwner = project.isOwner === true;
+  const pmProviders = Array.isArray(project.pmProviders) ? project.pmProviders : [];
 
   /* Phosphor Icons (bold, 256x256) — inlined so the overlay stays dependency-free */
   const PHOSPHOR_PATHS = {
@@ -1674,6 +1675,8 @@
           el('span', {}, ['Create issue']),
         ]);
 
+    const pmTaskBtn = buildPmTaskAction(comment);
+
     // Without the Cursor row, Reply is the bubble's primary action.
     const secondary = el('div', { class: 'review-action-row' }, [
       showReplyButton
@@ -1688,6 +1691,7 @@
         : null,
       resolveBtn,
       assignBtn,
+      pmTaskBtn,
       hideBtn,
       canDelete
         ? el('button', {
@@ -1714,12 +1718,163 @@
     ].filter(Boolean));
   }
 
+  function buildPmTaskAction(comment) {
+    const linked = Array.isArray(comment.pmTasks) ? comment.pmTasks : [];
+    if (linked.length === 1 && !pmProviders.length) {
+      return el('a', {
+        class: 'review-action review-action-ghost',
+        href: linked[0].url,
+        target: '_blank',
+        rel: 'noopener',
+        'data-tip': 'Open task',
+        onclick: (e) => e.stopPropagation(),
+      }, [icon('list', 15), el('span', {}, [linked[0].key || 'Open task'])]);
+    }
+    if (!pmProviders.length && !linked.length) return null;
+
+    if (linked.length === 1 && pmProviders.length <= 1) {
+      return el('a', {
+        class: 'review-action review-action-ghost',
+        href: linked[0].url,
+        target: '_blank',
+        rel: 'noopener',
+        onclick: (e) => e.stopPropagation(),
+      }, [
+        icon('list', 15),
+        el('span', {}, [linked[0].key || linked[0].provider || 'Task']),
+      ]);
+    }
+
+    return el('button', {
+      type: 'button',
+      class: 'review-action review-action-ghost',
+      'data-tip': pmProviders.length
+        ? 'Create a task in your PM tool'
+        : 'Open linked tasks',
+      onclick: (e) => {
+        e.stopPropagation();
+        openPmTaskPicker(comment, e.currentTarget);
+      },
+    }, [
+      icon('list', 15),
+      el('span', {}, [
+        linked.length ? `Tasks · ${linked.length}` : 'Create task',
+      ]),
+    ]);
+  }
+
+  function closePmTaskPicker() {
+    document.getElementById('review-pm-picker')?.remove();
+  }
+
+  function openPmTaskPicker(comment, anchor) {
+    closePmTaskPicker();
+    closeAssignPicker();
+    const linked = Array.isArray(comment.pmTasks) ? comment.pmTasks : [];
+    const picker = el('div', {
+      class: 'review-assign-picker',
+      id: 'review-pm-picker',
+      onclick: (e) => e.stopPropagation(),
+    });
+    picker.appendChild(el('div', { class: 'review-assign-picker-label' }, ['Project management']));
+
+    linked.forEach((t) => {
+      picker.appendChild(el('a', {
+        class: 'review-assign-picker-item',
+        href: t.url,
+        target: '_blank',
+        rel: 'noopener',
+      }, [
+        el('div', { class: 'review-assign-who' }, [
+          el('strong', {}, [t.key || t.title || 'Task']),
+          el('span', {}, [String(t.provider || '').toUpperCase()]),
+        ]),
+      ]));
+    });
+
+    pmProviders.forEach((p) => {
+      const already = linked.find((t) => t.provider === p.id);
+      if (already) return;
+      picker.appendChild(el('button', {
+        type: 'button',
+        class: 'review-assign-picker-item',
+        onclick: async (e) => {
+          e.stopPropagation();
+          closePmTaskPicker();
+          await createPmTaskFromComment(comment, p.id);
+        },
+      }, [
+        el('div', { class: 'review-assign-who' }, [
+          el('strong', {}, [`Create in ${p.name}`]),
+          el('span', {}, [p.destination || 'Connected']),
+        ]),
+      ]));
+    });
+
+    if (!pmProviders.length && !linked.length) {
+      picker.appendChild(el('div', { class: 'review-assign-picker-label' }, [
+        'Connect a project tool in Integrations first (Asana, ClickUp, Linear, Monday, Jira, or Notion).',
+      ]));
+    }
+
+    document.body.appendChild(picker);
+    const rect = anchor.getBoundingClientRect();
+    const width = 260;
+    let left = rect.left;
+    let top = rect.bottom + 8;
+    if (left + width > window.innerWidth - 12) left = window.innerWidth - width - 12;
+    if (top + 280 > window.innerHeight) top = Math.max(12, rect.top - 280);
+    picker.style.left = `${Math.max(12, left)}px`;
+    picker.style.top = `${top}px`;
+
+    const dismiss = (e) => {
+      if (e.target.closest?.('#review-pm-picker')) return;
+      closePmTaskPicker();
+      document.removeEventListener('mousedown', dismiss, true);
+    };
+    setTimeout(() => document.addEventListener('mousedown', dismiss, true), 0);
+  }
+
+  async function createPmTaskFromComment(comment, provider) {
+    try {
+      const res = await fetch('/api/pm-task', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ projectId, commentId: comment.id, provider }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.needsConnect) {
+          showPromptToast('Connect this tool in Integrations first');
+          return;
+        }
+        throw new Error(data.error || 'Could not create task');
+      }
+      await loadComments();
+      loadActivity();
+      renderSidebar();
+      const updated = state.comments.find((c) => c.id === comment.id) || data.comment;
+      if (updated) openViewBubble(updated);
+      showPromptToast(
+        data.alreadyExists
+          ? 'Task already linked'
+          : `Created in ${provider}`
+      );
+      if (data.task?.url && !data.alreadyExists) {
+        window.open(data.task.url, '_blank', 'noopener');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not create task');
+    }
+  }
+
   function closeAssignPicker() {
     document.getElementById('review-assign-picker')?.remove();
   }
 
   function openAssignPicker(comment, anchor) {
     closeAssignPicker();
+    closePmTaskPicker();
     const users = state.users || [];
     if (!users.length) {
       showPromptToast('No teammates on this project yet');
@@ -1896,6 +2051,8 @@
         return `${ev.actorName || 'Someone'} cleared an assignee`;
       case 'github_issue':
         return `${ev.actorName || 'Someone'} opened issue #${ev.githubIssueNumber}`;
+      case 'pm_task':
+        return `${ev.actorName || 'Someone'} created a ${ev.providerName || 'PM'} task`;
       case 'page_approved':
         return `${ev.actorName || 'Someone'} approved ${formatPage(ev.page || '')}`;
       case 'page_revoked':
@@ -1910,6 +2067,7 @@
   function activityIcon(type) {
     if (type === 'assigned' || type === 'unassigned') return 'users';
     if (type === 'github_issue') return 'gitPullRequest';
+    if (type === 'pm_task') return 'list';
     if (type === 'page_approved' || type === 'page_revoked') return 'sealCheck';
     if (type === 'comment_resolved' || type === 'comment_reopened') return 'checkCircle';
     if (type === 'cursor_started') return 'sparkle';
@@ -2128,6 +2286,12 @@
         badges.appendChild(el('span', { class: 'review-sidebar-chip review-sidebar-chip-issue' }, [
           icon('gitPullRequest', 12),
           el('span', {}, [`#${c.githubIssueNumber}`]),
+        ]));
+      }
+      if (c.pmTasks?.length) {
+        badges.appendChild(el('span', { class: 'review-sidebar-chip review-sidebar-chip-issue' }, [
+          icon('list', 12),
+          el('span', {}, [c.pmTasks.length === 1 ? 'Task' : `${c.pmTasks.length} tasks`]),
         ]));
       }
       if (c.screenshot) {

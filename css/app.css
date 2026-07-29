@@ -748,6 +748,17 @@ a { color: inherit; text-decoration: none; }
   gap: 14px;
 }
 
+.integration-section {
+  margin-top: 28px;
+}
+
+.integration-section-lede {
+  margin: -4px 0 16px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--brand-muted);
+}
+
 .integration-logo {
   width: 48px;
   height: 48px;
@@ -755,14 +766,22 @@ a { color: inherit; text-decoration: none; }
   display: grid;
   place-items: center;
   flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: color-mix(in srgb, var(--logo-accent, #B8FF54) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--logo-accent, #B8FF54) 28%, transparent);
+  color: var(--logo-accent, #B8FF54);
+  font-size: 18px;
+  font-weight: 800;
 }
 
-.integration-logo.slack {
+.integration-logo.slack,
+.integration-logo.brand {
   background: #fff;
   border-color: transparent;
+  color: #111;
+}
+
+.integration-logo.brand svg {
+  display: block;
 }
 
 .integration-meta {

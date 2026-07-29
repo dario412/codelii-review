@@ -2,13 +2,26 @@
  * Inject review overlay scripts into HTML and rewrite absolute/relative URLs for proxy mode.
  */
 import { canUseCursorTools } from './permissions.js';
+import { getCore } from './store.js';
+import { connectedPmProviders } from './pm.js';
 
-export function injectOverlay(html, project, viewer) {
+export async function injectOverlay(html, project, viewer) {
   const hasSource =
     typeof project.hasSource === 'boolean'
       ? project.hasSource
       : project.type === 'github';
   const cursorTools = canUseCursorTools(project, viewer);
+
+  let pmProviders = [];
+  if (viewer?.id) {
+    try {
+      const core = await getCore();
+      const account = core.users.find((u) => u.id === viewer.id);
+      pmProviders = connectedPmProviders(account);
+    } catch {
+      pmProviders = [];
+    }
+  }
 
   const ctx = {
     canUseCursorTools: cursorTools,
@@ -21,6 +34,7 @@ export function injectOverlay(html, project, viewer) {
     baseUrl: project.baseUrl || null,
     hasSource,
     viewPrefix: project.type === 'github' ? `/s/${project.id}` : `/p/${project.id}`,
+    pmProviders,
   };
 
   // Repo and local folder paths only drive the Cursor tools, so clients never
@@ -117,7 +131,7 @@ function rewriteUrl(href, projectId, baseOrigin, mode) {
   }
 }
 
-export function rewriteHtml(html, project, viewer) {
+export async function rewriteHtml(html, project, viewer) {
   const projectId = project.id;
   const baseOrigin = project.baseUrl || '';
   const mode = project.type === 'github' ? 'github' : 'url';
