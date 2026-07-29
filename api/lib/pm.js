@@ -210,7 +210,10 @@ export function buildPmAuthorizeUrl(providerId, state) {
       redirect_uri: redirectUri,
       response_type: 'code',
       state,
+      // Must match scopes enabled on the Monday app (OAuth & Permissions).
       scope: 'boards:read boards:write me:read',
+      // If the app isn't installed on the account yet, send the user to install first.
+      force_install_if_needed: 'true',
     });
     return `https://auth.monday.com/oauth2/authorize?${params}`;
   }
