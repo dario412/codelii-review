@@ -65,6 +65,63 @@
         <div class="integration-details" id="slack-details" hidden></div>
         <div class="integration-actions" id="slack-actions"></div>
       </article>
+
+      <article class="integration-card" id="card-teams">
+        <div class="integration-card-top">
+          <div class="integration-logo teams" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 2228.833 2073.333" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#5059C9" d="M1554.667 700.333h575.083c54.533 0 98.75 44.22 98.75 98.75v674.083c0 169.683-137.533 307.25-307.25 307.25h-0.5c-169.683 0-307.25-137.567-307.25-307.25V734.667a34.333 34.333 0 0 1 34.333-34.333z"/>
+              <circle fill="#5059C9" cx="1943.917" cy="341.083" r="212.25"/>
+              <circle fill="#7B83EB" cx="1218.833" cy="336.917" r="336.917"/>
+              <path fill="#7B83EB" d="M1667.333 734.667V1554.5c0 123.783-60.35 233.517-153.25 301.867-74.817 55.1-166.767 85.3-263.083 85.3H505.5c-18.1 0-35.867-1.3-53.25-3.817C579.333 1980.6 728.667 2073.333 901.333 2073.333h782.167c242.933 0 439.833-196.9 439.833-439.833V1007.667c0-150.783-122.25-273-273-273h-183z"/>
+              <path fill="#4B53BC" d="M112.833 619.667h1092.667c62.35 0 112.833 50.483 112.833 112.833v1092.667c0 62.35-50.483 112.833-112.833 112.833H112.833C50.483 1938 0 1887.517 0 1825.167V732.5c0-62.35 50.483-112.833 112.833-112.833z"/>
+              <path fill="#FFF" d="M821.167 1386.5h-162.5v-437.833H486.167V833.667h335z"/>
+            </svg>
+          </div>
+          <div class="integration-meta">
+            <h2>Microsoft Teams</h2>
+            <p>Post the same review updates to a Teams channel via incoming webhook.</p>
+          </div>
+          <span class="integration-status" id="teams-status">Checking…</span>
+        </div>
+        <div class="integration-details" id="teams-details" hidden></div>
+        <div class="integration-actions" id="teams-actions"></div>
+      </article>
+
+      <article class="integration-card" id="card-discord">
+        <div class="integration-card-top">
+          <div class="integration-logo discord" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#5865F2" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69c-6.23 0-11.31-5.67-11.31-12.67s4.98-12.69 11.31-12.69 11.37 5.73 11.31 12.69c.01 7-4.99 12.67-11.31 12.67Zm42.24 0c-6.23 0-11.31-5.67-11.31-12.67s4.99-12.69 11.31-12.69 11.37 5.73 11.31 12.69c0 7-5 12.67-11.31 12.67Z"/>
+            </svg>
+          </div>
+          <div class="integration-meta">
+            <h2>Discord</h2>
+            <p>Dev-friendly channel alerts for comments, assignments, and approvals.</p>
+          </div>
+          <span class="integration-status" id="discord-status">Checking…</span>
+        </div>
+        <div class="integration-details" id="discord-details" hidden></div>
+        <div class="integration-actions" id="discord-actions"></div>
+      </article>
+
+      <article class="integration-card" id="card-digest">
+        <div class="integration-card-top">
+          <div class="integration-logo digest" aria-hidden="true">
+            <svg width="28" height="28" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="256" height="256" rx="56" fill="#002B2B"/>
+              <path d="M48 88h160v16H48V88zm0 40h160v16H48v-16zm0 40h112v16H48v-16z" fill="#B8FF54"/>
+            </svg>
+          </div>
+          <div class="integration-meta">
+            <h2>Email digest</h2>
+            <p>Daily or weekly summary of open comments across your projects.</p>
+          </div>
+          <span class="integration-status" id="digest-status">Checking…</span>
+        </div>
+        <div class="integration-details" id="digest-details" hidden></div>
+        <div class="integration-actions" id="digest-actions"></div>
+      </article>
     </div>
   </div>
 
@@ -265,6 +322,260 @@
     actions.appendChild(hint);
   }
 
+  function paintWebhookCard(id, data, opts) {
+    const status = document.getElementById(`${id}-status`);
+    const details = document.getElementById(`${id}-details`);
+    const actions = document.getElementById(`${id}-actions`);
+    const card = document.getElementById(`card-${id}`);
+    actions.innerHTML = '';
+    details.hidden = true;
+    details.textContent = '';
+
+    if (data?.connected) {
+      status.textContent = 'Connected';
+      status.className = 'integration-status on';
+      card.classList.add('is-connected');
+      details.hidden = false;
+      const bits = [];
+      if (data.label) bits.push(data.label);
+      if (data.connectedAt) bits.push(`since ${formatDate(data.connectedAt)}`);
+      details.textContent = bits.join(' · ') || opts.connectedLabel;
+
+      const testBtn = document.createElement('button');
+      testBtn.type = 'button';
+      testBtn.className = 'btn';
+      testBtn.innerHTML = '<span data-label>Send test</span>';
+      testBtn.onclick = async () => {
+        testBtn.disabled = true;
+        setLabel(testBtn, 'Sending…');
+        try {
+          const res = await fetch('/api/integrations', {
+            method: 'POST',
+            headers: ReviewAuth.headers(),
+            body: JSON.stringify({ action: 'test', provider: id }),
+          });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(out.error || 'Test failed');
+          showFlash('ok', opts.testOk);
+        } catch (err) {
+          showFlash('err', err.message || 'Test failed');
+        } finally {
+          testBtn.disabled = false;
+          setLabel(testBtn, 'Send test');
+        }
+      };
+
+      const disconnect = document.createElement('button');
+      disconnect.type = 'button';
+      disconnect.className = 'btn';
+      disconnect.innerHTML = '<span data-label>Disconnect</span>';
+      disconnect.onclick = async () => {
+        if (!confirm(opts.disconnectConfirm)) return;
+        const res = await fetch(`/api/integrations?provider=${encodeURIComponent(id)}`, {
+          method: 'DELETE',
+          headers: ReviewAuth.headers(),
+        });
+        if (!res.ok) {
+          const out = await res.json().catch(() => ({}));
+          showFlash('err', out.error || 'Could not disconnect');
+          return;
+        }
+        showFlash('ok', opts.disconnected);
+        await load();
+      };
+
+      actions.append(testBtn, disconnect);
+      return;
+    }
+
+    status.textContent = 'Not connected';
+    status.className = 'integration-status';
+    card.classList.remove('is-connected');
+
+    const form = document.createElement('div');
+    form.className = 'integration-webhook-form';
+    const input = document.createElement('input');
+    input.type = 'url';
+    input.className = 'integration-webhook-input';
+    input.placeholder = opts.placeholder;
+    input.autocomplete = 'off';
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'btn btn-accent';
+    save.innerHTML = `<span data-label>${opts.connectLabel}</span>`;
+    save.onclick = async () => {
+      save.disabled = true;
+      setLabel(save, 'Saving…');
+      try {
+        const res = await fetch('/api/integrations', {
+          method: 'POST',
+          headers: ReviewAuth.headers(),
+          body: JSON.stringify({
+            action: 'connect',
+            provider: id,
+            webhookUrl: input.value.trim(),
+          }),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(out.error || 'Could not save webhook');
+        showFlash('ok', opts.connectedOk);
+        await load();
+      } catch (err) {
+        showFlash('err', err.message || 'Could not save webhook');
+        save.disabled = false;
+        setLabel(save, opts.connectLabel);
+      }
+    };
+    form.append(input, save);
+    actions.appendChild(form);
+    const hint = document.createElement('p');
+    hint.className = 'integration-hint';
+    hint.textContent = opts.hint;
+    actions.appendChild(hint);
+  }
+
+  function paintTeams(teams) {
+    paintWebhookCard('teams', teams, {
+      connectedLabel: 'Teams webhook connected.',
+      testOk: 'Test message sent to Teams.',
+      disconnectConfirm: 'Disconnect Microsoft Teams?',
+      disconnected: 'Teams disconnected.',
+      placeholder: 'https://…webhook.office.com/… or Power Automate URL',
+      connectLabel: 'Save webhook',
+      connectedOk: 'Teams connected.',
+      hint: 'In Teams: channel → Connectors / Workflows → Incoming Webhook → copy URL.',
+    });
+  }
+
+  function paintDiscord(discord) {
+    paintWebhookCard('discord', discord, {
+      connectedLabel: 'Discord webhook connected.',
+      testOk: 'Test message sent to Discord.',
+      disconnectConfirm: 'Disconnect Discord?',
+      disconnected: 'Discord disconnected.',
+      placeholder: 'https://discord.com/api/webhooks/…',
+      connectLabel: 'Save webhook',
+      connectedOk: 'Discord connected.',
+      hint: 'In Discord: channel settings → Integrations → Webhooks → New Webhook → copy URL.',
+    });
+  }
+
+  function paintDigest(digest) {
+    const status = document.getElementById('digest-status');
+    const details = document.getElementById('digest-details');
+    const actions = document.getElementById('digest-actions');
+    const card = document.getElementById('card-digest');
+    actions.innerHTML = '';
+    details.hidden = true;
+    details.textContent = '';
+
+    if (!digest?.available) {
+      status.textContent = 'Not configured';
+      status.className = 'integration-status warn';
+      card.classList.remove('is-connected');
+      const note = document.createElement('p');
+      note.className = 'integration-hint';
+      note.textContent = 'Add RESEND_API_KEY (and RESEND_FROM_EMAIL) on the server to enable digests.';
+      actions.appendChild(note);
+      return;
+    }
+
+    const frequency = digest.frequency || 'off';
+    if (frequency !== 'off') {
+      status.textContent = frequency === 'weekly' ? 'Weekly' : 'Daily';
+      status.className = 'integration-status on';
+      card.classList.add('is-connected');
+      details.hidden = false;
+      details.textContent = digest.lastSentAt
+        ? `Last sent ${formatDate(digest.lastSentAt)}`
+        : 'Will send when you have open comments.';
+    } else {
+      status.textContent = 'Off';
+      status.className = 'integration-status';
+      card.classList.remove('is-connected');
+    }
+
+    const row = document.createElement('div');
+    row.className = 'integration-digest-row';
+    const select = document.createElement('select');
+    select.className = 'integration-digest-select';
+    [
+      ['off', 'Off'],
+      ['daily', 'Daily'],
+      ['weekly', 'Weekly (Mondays)'],
+    ].forEach(([value, label]) => {
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = label;
+      if (value === frequency) opt.selected = true;
+      select.appendChild(opt);
+    });
+
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = 'btn btn-accent';
+    save.innerHTML = '<span data-label>Save</span>';
+    save.onclick = async () => {
+      save.disabled = true;
+      setLabel(save, 'Saving…');
+      try {
+        const res = await fetch('/api/integrations', {
+          method: 'POST',
+          headers: ReviewAuth.headers(),
+          body: JSON.stringify({
+            action: 'save',
+            provider: 'digest',
+            frequency: select.value,
+          }),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(out.error || 'Could not save');
+        showFlash('ok', 'Digest preference saved.');
+        await load();
+      } catch (err) {
+        showFlash('err', err.message || 'Could not save');
+        save.disabled = false;
+        setLabel(save, 'Save');
+      }
+    };
+
+    row.append(select, save);
+    actions.appendChild(row);
+
+    if (frequency !== 'off') {
+      const sendNow = document.createElement('button');
+      sendNow.type = 'button';
+      sendNow.className = 'btn';
+      sendNow.innerHTML = '<span data-label>Send now</span>';
+      sendNow.onclick = async () => {
+        sendNow.disabled = true;
+        setLabel(sendNow, 'Sending…');
+        try {
+          const res = await fetch('/api/digest', {
+            method: 'POST',
+            headers: ReviewAuth.headers(),
+          });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(out.error || 'Send failed');
+          if (out.empty) showFlash('ok', out.message || 'No open comments to summarize.');
+          else showFlash('ok', `Digest sent (${out.total} open).`);
+          await load();
+        } catch (err) {
+          showFlash('err', err.message || 'Send failed');
+        } finally {
+          sendNow.disabled = false;
+          setLabel(sendNow, 'Send now');
+        }
+      };
+      actions.appendChild(sendNow);
+    }
+
+    const hint = document.createElement('p');
+    hint.className = 'integration-hint';
+    hint.textContent = 'Uses the same Resend setup as invites and @mention emails. Cron runs once a day (weekly digests on Mondays).';
+    actions.appendChild(hint);
+  }
+
   function paintPmGrid(integrations) {
     const grid = document.getElementById('pm-grid');
     grid.innerHTML = '';
@@ -394,6 +705,9 @@
     }
     const data = await res.json();
     paintSlack(data.integrations?.slack);
+    paintTeams(data.integrations?.teams);
+    paintDiscord(data.integrations?.discord);
+    paintDigest(data.integrations?.digest);
     paintPmGrid(data.integrations || {});
   }
 

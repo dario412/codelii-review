@@ -10,7 +10,7 @@ import {
 import { getUser } from './lib/auth.js';
 import { notifyCommentTagged, notifyReply, addNotification } from './lib/notifications.js';
 import { pushActivity } from './lib/activity.js';
-import { notifySlack } from './lib/slack.js';
+import { notifyReviewEvent } from './lib/notify.js';
 import { json, corsOptions } from './lib/http.js';
 
 export async function OPTIONS() {
@@ -81,7 +81,7 @@ export async function POST(request) {
     notifyReply(store, parent, reply, user);
     await saveProjectStore(projectId, store);
 
-    notifySlack(core, project, {
+    notifyReviewEvent(core, project, {
       title: 'New reply',
       body: reply.text,
       page: parent.page,
@@ -145,7 +145,7 @@ export async function POST(request) {
   });
   await saveProjectStore(projectId, store);
 
-  notifySlack(core, project, {
+  notifyReviewEvent(core, project, {
     title: 'New comment',
     body: comment.text,
     page: comment.page,
@@ -201,7 +201,7 @@ export async function PATCH(request) {
       page: comment.page,
       message: comment.text.slice(0, 160),
     });
-    notifySlack(core, project, {
+    notifyReviewEvent(core, project, {
       title: resolved ? 'Comment resolved' : 'Comment reopened',
       body: comment.text,
       page: comment.page,
@@ -263,7 +263,7 @@ export async function PATCH(request) {
         assigneeName: assignee.name,
         message: comment.text.slice(0, 160),
       });
-      notifySlack(core, project, {
+      notifyReviewEvent(core, project, {
         title: `Assigned to ${assignee.name}`,
         body: comment.text,
         page: comment.page,

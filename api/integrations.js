@@ -1,5 +1,5 @@
 /**
- * Integrations hub — Slack + project-management providers.
+ * Integrations hub — Slack / Teams / Discord / email digests + PM providers.
  */
 import { getCore, saveCore } from './lib/store.js';
 import { getUser } from './lib/auth.js';
@@ -11,6 +11,20 @@ import {
   createSlackOAuthState,
   buildSlackAuthorizeUrl,
 } from './lib/slack.js';
+import {
+  normalizeTeamsWebhook,
+  publicTeamsStatus,
+  postTeams,
+} from './lib/teams.js';
+import {
+  normalizeDiscordWebhook,
+  publicDiscordStatus,
+  postDiscord,
+} from './lib/discord.js';
+import {
+  DIGEST_FREQUENCIES,
+  publicDigestStatus,
+} from './lib/digest.js';
 import {
   listPmProviders,
   publicPmStatus,
@@ -40,6 +54,8 @@ export async function GET(request) {
     pm[p.id] = publicPmStatus(account, p.id);
   }
 
+  const digest = publicDigestStatus(account);
+
   return json({
     integrations: {
       slack: {
@@ -48,6 +64,26 @@ export async function GET(request) {
         category: 'notify',
         name: 'Slack',
         blurb: 'Get review comments, assignments, and page approvals in a Slack channel.',
+      },
+      teams: {
+        available: true,
+        ...publicTeamsStatus(account),
+        category: 'notify',
+        name: 'Microsoft Teams',
+        blurb: 'Post the same review updates to a Teams channel via incoming webhook.',
+      },
+      discord: {
+        available: true,
+        ...publicDiscordStatus(account),
+        category: 'notify',
+        name: 'Discord',
+        blurb: 'Dev-friendly channel alerts for comments, assignments, and approvals.',
+      },
+      digest: {
+        ...digest,
+        category: 'notify',
+        name: 'Email digest',
+        blurb: 'Daily or weekly summary of open comments across your projects.',
       },
       ...pm,
       github: {
@@ -105,6 +141,80 @@ export async function POST(request) {
     return json({ ok: true });
   }
 
+  if (provider === 'teams' && action === 'connect') {
+    let webhookUrl;
+    try {
+      webhookUrl = normalizeTeamsWebhook(body.webhookUrl);
+    } catch (err) {
+      return json({ error: err.message }, 400);
+    }
+    if (!webhookUrl) return json({ error: 'Webhook URL required' }, 400);
+    account.teams = {
+      webhookUrl,
+      label: (body.label || '').trim().slice(0, 80) || null,
+      connectedAt: new Date().toISOString(),
+    };
+    await saveCore(core);
+    return json({ ok: true, teams: publicTeamsStatus(account) });
+  }
+
+  if (provider === 'teams' && action === 'test') {
+    if (!account.teams?.webhookUrl) return json({ error: 'Connect Teams first' }, 400);
+    const ok = await postTeams(account.teams.webhookUrl, {
+      title: 'Codelii Review is connected',
+      body: `You'll get notifications here for comments, assignments, and page approvals.\nSent as a test by ${account.name || account.email}`,
+      projectName: 'Integrations',
+      link: (process.env.SITE_URL || '').replace(/\/+$/, '') + '/integrations.html',
+    });
+    if (!ok) return json({ error: 'Teams rejected the test message. Check the webhook URL.' }, 502);
+    return json({ ok: true });
+  }
+
+  if (provider === 'discord' && action === 'connect') {
+    let webhookUrl;
+    try {
+      webhookUrl = normalizeDiscordWebhook(body.webhookUrl);
+    } catch (err) {
+      return json({ error: err.message }, 400);
+    }
+    if (!webhookUrl) return json({ error: 'Webhook URL required' }, 400);
+    account.discord = {
+      webhookUrl,
+      label: (body.label || '').trim().slice(0, 80) || null,
+      connectedAt: new Date().toISOString(),
+    };
+    await saveCore(core);
+    return json({ ok: true, discord: publicDiscordStatus(account) });
+  }
+
+  if (provider === 'discord' && action === 'test') {
+    if (!account.discord?.webhookUrl) return json({ error: 'Connect Discord first' }, 400);
+    const ok = await postDiscord(account.discord.webhookUrl, {
+      title: 'Codelii Review is connected',
+      body: `You'll get notifications here for comments, assignments, and page approvals. Sent as a test by ${account.name || account.email}`,
+      projectName: 'Integrations',
+      link: (process.env.SITE_URL || '').replace(/\/+$/, '') + '/integrations.html',
+    });
+    if (!ok) return json({ error: 'Discord rejected the test message. Check the webhook URL.' }, 502);
+    return json({ ok: true });
+  }
+
+  if (provider === 'digest' && action === 'save') {
+    const frequency = String(body.frequency || 'off').toLowerCase();
+    if (!DIGEST_FREQUENCIES.includes(frequency)) {
+      return json({ error: 'frequency must be off, daily, or weekly' }, 400);
+    }
+    if (frequency !== 'off' && !(process.env.RESEND_API_KEY || '').trim()) {
+      return json({ error: 'Email is not configured (RESEND_API_KEY)' }, 503);
+    }
+    account.emailDigest = {
+      ...(account.emailDigest || {}),
+      frequency,
+    };
+    await saveCore(core);
+    return json({ ok: true, digest: publicDigestStatus(account) });
+  }
+
   // PM connect
   if (action === 'connect' && PM_PROVIDERS[provider]) {
     const meta = PM_PROVIDERS[provider];
@@ -146,6 +256,24 @@ export async function DELETE(request) {
     delete account.slack;
     await saveCore(core);
     return json({ ok: true, slack: { connected: false } });
+  }
+
+  if (provider === 'teams') {
+    delete account.teams;
+    await saveCore(core);
+    return json({ ok: true, teams: { connected: false } });
+  }
+
+  if (provider === 'discord') {
+    delete account.discord;
+    await saveCore(core);
+    return json({ ok: true, discord: { connected: false } });
+  }
+
+  if (provider === 'digest') {
+    account.emailDigest = { ...(account.emailDigest || {}), frequency: 'off' };
+    await saveCore(core);
+    return json({ ok: true, digest: publicDigestStatus(account) });
   }
 
   if (PM_PROVIDERS[provider]) {

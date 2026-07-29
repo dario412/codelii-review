@@ -17,7 +17,7 @@ import {
 import { getUser } from './lib/auth.js';
 import { json, corsOptions } from './lib/http.js';
 import { pushActivity } from './lib/activity.js';
-import { notifySlack } from './lib/slack.js';
+import { notifyReviewEvent } from './lib/notify.js';
 
 export async function OPTIONS() {
   return corsOptions('GET, POST, DELETE, OPTIONS');
@@ -113,7 +113,7 @@ export async function POST(request) {
   });
   await saveProjectStore(projectId, store);
 
-  notifySlack(core, project, {
+  notifyReviewEvent(core, project, {
     title: 'Page approved',
     body: page,
     page,
