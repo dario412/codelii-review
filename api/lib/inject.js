@@ -110,6 +110,29 @@ window.__CODELII_REVIEW__=true;
 
   /* Selective DOM reveal: entrance fades only (not hover popovers) */
   (function selectiveEntranceReveal(){
+    /* CSS fallback — works even if React keeps re-adding opacity-0 classes.
+       Skip .absolute/.fixed so hero/hover popovers stay closed until hover. */
+    try{
+      var css=document.createElement("style");
+      css.setAttribute("data-codelii-entrance-reveal","1");
+      css.textContent=[
+        '.opacity-0.translate-y-4:not(.absolute):not(.fixed),',
+        '.opacity-0.translate-y-5:not(.absolute):not(.fixed),',
+        '.opacity-0.translate-y-6:not(.absolute):not(.fixed),',
+        '.opacity-0.translate-y-7:not(.absolute):not(.fixed),',
+        '.opacity-0.translate-y-8:not(.absolute):not(.fixed),',
+        '.opacity-0.translate-y-10:not(.absolute):not(.fixed),',
+        '.opacity-0.translate-y-12:not(.absolute):not(.fixed),',
+        '.opacity-0.translate-y-16:not(.absolute):not(.fixed),',
+        '.opacity-0.translate-y-20:not(.absolute):not(.fixed),',
+        '.opacity-0.translate-y-24:not(.absolute):not(.fixed),',
+        '[class*="transition-[opacity,transform]"].opacity-0:not(.absolute):not(.fixed){',
+        'opacity:1!important;transform:none!important;translate:none!important;visibility:visible!important;',
+        '}'
+      ].join("");
+      (document.head||document.documentElement).appendChild(css);
+    }catch(e){}
+
     var ENTRANCE_Y=/translate-y-(?:[1-9]|1[0-2]|14|16|20|24)\\b|-translate-y-/;
     var HOVER_SHOW=/group-hover:opacity-|group-focus-within:opacity-|peer-hover:opacity-/;
     function isReviewChrome(el){
@@ -125,6 +148,7 @@ window.__CODELII_REVIEW__=true;
     function isHoverChrome(el){
       var cls=classStr(el);
       if(HOVER_SHOW.test(cls))return true;
+      if(/(\\s|^)(absolute|fixed)(\\s|$)/.test(cls))return true;
       try{
         var cs=window.getComputedStyle(el);
         if(cs&&(cs.position==="absolute"||cs.position==="fixed"))return true;
