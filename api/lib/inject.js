@@ -12,6 +12,8 @@ function viewPrefix(project) {
 /**
  * Runs before site JS. Root-absolute fetches/chunk loads (esp. Next `/_next/`)
  * would otherwise hit the review host and 404 — leaving canvas/motion empty.
+ * Also forces scroll-into-view / entrance animations to their end state so
+ * clients see the full page in review, not opacity-0 placeholders.
  */
 export function proxyPathBootstrap(prefix) {
   const P = JSON.stringify(String(prefix || '').replace(/\/+$/, ''));
@@ -67,13 +69,179 @@ if(typeof Worker!=="undefined"){
   window.Worker=function(scriptURL,options){return new OrigWorker(rewrite(String(scriptURL)),options);};
   window.Worker.prototype=OrigWorker.prototype;
 }
-window.addEventListener("load",function(){
-  try{
-    window.dispatchEvent(new Event("resize"));
-    window.dispatchEvent(new Event("scroll"));
-  }catch(e){}
-});
-})();</script>`;
+
+/* ---- Force scroll / entrance animations to complete in review ---- */
+(function forceReveal(){
+  var OrigIO=window.IntersectionObserver;
+  if(OrigIO){
+    window.IntersectionObserver=function(callback,options){
+      function forceEntry(target){
+        var rect=target&&target.getBoundingClientRect?target.getBoundingClientRect():{top:0,left:0,bottom:0,right:0,width:0,height:0,x:0,y:0,toJSON:function(){return{};}};
+        return {
+          time: typeof performance!=="undefined"?performance.now():Date.now(),
+          target: target,
+          isIntersecting: true,
+          intersectionRatio: 1,
+          boundingClientRect: rect,
+          intersectionRect: rect,
+          rootBounds: null,
+          isVisible: true
+        };
+      }
+      var obs=new OrigIO(function(entries,observer){
+        var mapped=(entries||[]).map(function(e){
+          return {
+            time: e.time,
+            target: e.target,
+            isIntersecting: true,
+            intersectionRatio: 1,
+            boundingClientRect: e.boundingClientRect,
+            intersectionRect: e.boundingClientRect||e.intersectionRect,
+            rootBounds: e.rootBounds,
+            isVisible: true
+          };
+        });
+        callback(mapped,observer);
+      },options);
+      var _observe=obs.observe.bind(obs);
+      obs.observe=function(target){
+        _observe(target);
+        try{
+          var entry=forceEntry(target);
+          queueMicrotask(function(){ try{ callback([entry],obs); }catch(err){} });
+        }catch(err){}
+      };
+      return obs;
+    };
+    window.IntersectionObserver.prototype=OrigIO.prototype;
+    try{ Object.setPrototypeOf(window.IntersectionObserver, OrigIO); }catch(e){}
+  }
+
+  function isReviewChrome(el){
+    if(!el||!el.closest)return false;
+    return !!el.closest('#review-toolbar,#review-sidebar,#review-pins-layer,#review-active-bubble,#review-live-toasts,#review-notifications-panel,#review-notifications-wrap,#review-click-shield,#review-screenshot-lightbox,#review-selection-bar,#review-follow-banner,#review-remote-cursor,#review-mention-dropdown,.review-bubble,.review-assign-picker,.review-pm-picker');
+  }
+
+  function finishAnimations(){
+    try{
+      if(!document.getAnimations)return;
+      document.getAnimations({subtree:true}).forEach(function(a){
+        try{ a.finish(); }catch(e){}
+      });
+    }catch(e){}
+  }
+
+  function revealInlineHidden(){
+    var all=document.body?document.body.getElementsByTagName("*"):[];
+    for(var i=0;i<all.length;i++){
+      var el=all[i];
+      if(isReviewChrome(el))continue;
+      var st=el.style;
+      if(!st)continue;
+      var op=st.opacity;
+      if(op!==""&&parseFloat(op)===0){
+        st.setProperty("opacity","1","important");
+        if(st.transform)st.setProperty("transform","none","important");
+        if(st.filter)st.setProperty("filter","none","important");
+        if(st.translate)st.setProperty("translate","none","important");
+        if(st.scale)st.setProperty("scale","none","important");
+      }
+      if(st.visibility==="hidden"&&!el.hasAttribute("hidden")){
+        /* skip intentionally collapsed UI with [hidden]; only style-based hides */
+        var cs=window.getComputedStyle(el);
+        if(cs&&cs.position==="fixed")continue;
+        st.setProperty("visibility","visible","important");
+      }
+    }
+  }
+
+  function revealComputedHidden(){
+    /* Catch CSS-class entrance states stuck at opacity 0 (no WAAPI handle). */
+    var candidates=document.querySelectorAll('[class*="intro"],[class*="Intro"],[class*="reveal"],[class*="Reveal"],[class*="animate"],[class*="Animate"],[class*="fade"],[class*="Fade"],[class*="motion"],[data-animate],[data-aos],.aos-init,[style*="opacity"]');
+    for(var i=0;i<candidates.length;i++){
+      var el=candidates[i];
+      if(isReviewChrome(el))continue;
+      var cs=window.getComputedStyle(el);
+      if(!cs)continue;
+      if(parseFloat(cs.opacity)===0 && cs.display!=="none"){
+        el.style.setProperty("opacity","1","important");
+        el.style.setProperty("transform","none","important");
+        el.style.setProperty("filter","none","important");
+      }
+    }
+  }
+
+  var swept=false;
+  function scrollSweep(done){
+    if(swept){ if(done)done(); return; }
+    swept=true;
+    var startY=window.scrollY||0;
+    var max=Math.max(
+      document.body?document.body.scrollHeight:0,
+      document.documentElement?document.documentElement.scrollHeight:0
+    );
+    var view=window.innerHeight||800;
+    var y=0;
+    var step=Math.max(Math.floor(view*0.55),280);
+    function tick(){
+      if(y>max){
+        window.scrollTo(0,startY);
+        try{
+          window.dispatchEvent(new Event("scroll"));
+          window.dispatchEvent(new Event("resize"));
+        }catch(e){}
+        if(done)done();
+        return;
+      }
+      window.scrollTo(0,y);
+      try{ window.dispatchEvent(new Event("scroll")); }catch(e){}
+      y+=step;
+      requestAnimationFrame(function(){ requestAnimationFrame(tick); });
+    }
+    tick();
+  }
+
+  function runReveal(withSweep){
+    try{ document.documentElement.classList.add("codelii-review-reveal"); }catch(e){}
+    finishAnimations();
+    revealInlineHidden();
+    revealComputedHidden();
+    try{
+      window.dispatchEvent(new Event("resize"));
+      window.dispatchEvent(new Event("scroll"));
+    }catch(e){}
+    if(withSweep){
+      scrollSweep(function(){
+        finishAnimations();
+        revealInlineHidden();
+        revealComputedHidden();
+      });
+    }
+  }
+
+  function schedule(){
+    runReveal(false);
+    setTimeout(function(){ runReveal(true); }, 400);
+    setTimeout(function(){ runReveal(false); }, 1200);
+    setTimeout(function(){ runReveal(false); }, 2800);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded",schedule,{once:true});
+  }else{
+    schedule();
+  }
+  window.addEventListener("load",function(){
+    runReveal(true);
+  });
+})();
+})();</script>
+<style data-codelii-reveal>
+  /* Nudge CSS entrance animations to their end state quickly in review */
+  html.codelii-review-reveal :where([class*="intro"],[class*="Intro"],[class*="reveal"],[class*="Reveal"],[class*="word"],[class*="Word"],[class*="fade"],[class*="Fade"],[data-aos],.aos-animate){
+    animation-delay: 0s !important;
+  }
+</style>`;
 }
 
 export async function injectOverlay(html, project, viewer) {
