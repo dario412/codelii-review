@@ -17,6 +17,7 @@ import {
   clearPmConnection,
   isPmConfigured,
   createPmOAuthState,
+  createPkcePair,
   buildPmAuthorizeUrl,
   PM_PROVIDERS,
 } from './lib/pm.js';
@@ -111,8 +112,19 @@ export async function POST(request) {
     if (!isPmConfigured(provider)) {
       return json({ error: `${meta.name} OAuth is not configured on this server` }, 503);
     }
-    const state = await createPmOAuthState(account.id, provider);
-    return json({ url: buildPmAuthorizeUrl(provider, state) });
+    const pkce = provider === 'monday' ? createPkcePair() : null;
+    const state = await createPmOAuthState(
+      account.id,
+      provider,
+      pkce ? { codeVerifier: pkce.codeVerifier } : {}
+    );
+    return json({
+      url: buildPmAuthorizeUrl(
+        provider,
+        state,
+        pkce ? { codeChallenge: pkce.codeChallenge } : {}
+      ),
+    });
   }
 
   return json({ error: 'Unknown action' }, 400);
