@@ -2,6 +2,7 @@
  * Project-management integrations — Comment → task.
  * Live: Linear, Asana, ClickUp, Jira, Monday, Notion.
  */
+import { createHash, randomBytes } from 'crypto';
 import { SignJWT, jwtVerify } from 'jose';
 
 const OAUTH_STATE_TTL = '15m';
@@ -151,8 +152,14 @@ export function connectedPmProviders(account) {
     }));
 }
 
-export async function createPmOAuthState(userId, providerId) {
-  return new SignJWT({ purpose: 'pm_oauth', uid: userId, provider: providerId })
+export async function createPmOAuthState(userId, providerId, extra = {}) {
+  const payload = {
+    purpose: 'pm_oauth',
+    uid: userId,
+    provider: providerId,
+  };
+  if (extra.codeVerifier) payload.cv = String(extra.codeVerifier);
+  return new SignJWT(payload)
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(OAUTH_STATE_TTL)
@@ -164,13 +171,24 @@ export async function verifyPmOAuthState(state) {
   try {
     const { payload } = await jwtVerify(state, jwtSecret());
     if (payload.purpose !== 'pm_oauth' || !payload.uid || !payload.provider) return null;
-    return { userId: String(payload.uid), provider: String(payload.provider) };
+    return {
+      userId: String(payload.uid),
+      provider: String(payload.provider),
+      codeVerifier: payload.cv ? String(payload.cv) : null,
+    };
   } catch {
     return null;
   }
 }
 
-export function buildPmAuthorizeUrl(providerId, state) {
+/** PKCE pair for Monday OAuth 2.1 (S256). */
+export function createPkcePair() {
+  const codeVerifier = randomBytes(32).toString('base64url');
+  const codeChallenge = createHash('sha256').update(codeVerifier).digest('base64url');
+  return { codeVerifier, codeChallenge };
+}
+
+export function buildPmAuthorizeUrl(providerId, state, opts = {}) {
   const redirectUri = pmCallbackUri();
   if (providerId === 'linear') {
     const clientId = (process.env.LINEAR_CLIENT_ID || '').trim();
@@ -205,6 +223,9 @@ export function buildPmAuthorizeUrl(providerId, state) {
   }
   if (providerId === 'monday') {
     const clientId = (process.env.MONDAY_CLIENT_ID || '').trim();
+    if (!opts.codeChallenge) {
+      throw new Error('Monday OAuth requires PKCE code_challenge');
+    }
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
@@ -212,6 +233,8 @@ export function buildPmAuthorizeUrl(providerId, state) {
       state,
       // Must match scopes enabled on the Monday app (OAuth & Permissions).
       scope: 'boards:read boards:write me:read',
+      code_challenge: opts.codeChallenge,
+      code_challenge_method: 'S256',
       // If the app isn't installed on the account yet, send the user to install first.
       force_install_if_needed: 'true',
     });
@@ -257,7 +280,7 @@ async function formPost(url, fields) {
   return data;
 }
 
-export async function exchangePmCode(providerId, code) {
+export async function exchangePmCode(providerId, code, opts = {}) {
   const redirectUri = pmCallbackUri();
   if (providerId === 'linear') {
     const data = await formPost('https://api.linear.app/oauth/token', {
@@ -311,14 +334,27 @@ export async function exchangePmCode(providerId, code) {
     };
   }
   if (providerId === 'monday') {
-    const data = await formPost('https://auth.monday.com/oauth2/token', {
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: redirectUri,
-      client_id: (process.env.MONDAY_CLIENT_ID || '').trim(),
-      client_secret: (process.env.MONDAY_CLIENT_SECRET || '').trim(),
+    if (!opts.codeVerifier) {
+      throw new Error('Monday OAuth requires PKCE code_verifier — reconnect from Integrations');
+    }
+    const res = await fetch('https://auth.monday.com/oauth_ms/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: (process.env.MONDAY_CLIENT_ID || '').trim(),
+        client_secret: (process.env.MONDAY_CLIENT_SECRET || '').trim(),
+        code_verifier: opts.codeVerifier,
+      }),
     });
-    if (!data.access_token) throw new Error('Monday.com did not return an access token');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.access_token) {
+      throw new Error(
+        data.error_description || data.error || data.message || `Monday token exchange failed (${res.status})`
+      );
+    }
     const dest = await resolveMondayDestination(data.access_token);
     return {
       accessToken: data.access_token,

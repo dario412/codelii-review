@@ -44,14 +44,14 @@ export async function GET(request) {
   const parsed = await verifyPmOAuthState(state);
   if (!parsed) return redirect('/integrations.html?pm=invalid_state');
 
-  const { userId, provider } = parsed;
+  const { userId, provider, codeVerifier } = parsed;
   const meta = PM_PROVIDERS[provider];
   if (!meta || meta.comingSoon) {
     return redirect('/integrations.html?pm=error');
   }
 
   try {
-    const connection = await exchangePmCode(provider, code);
+    const connection = await exchangePmCode(provider, code, { codeVerifier });
     const core = await getCore();
     const account = core.users.find((u) => u.id === userId);
     if (!account || account.guest) return redirect('/integrations.html?pm=forbidden');

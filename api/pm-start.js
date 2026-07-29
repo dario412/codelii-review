@@ -9,6 +9,7 @@ import {
   PM_PROVIDERS,
   isPmConfigured,
   createPmOAuthState,
+  createPkcePair,
   buildPmAuthorizeUrl,
 } from './lib/pm.js';
 
@@ -36,8 +37,17 @@ async function startForUser(user, providerId) {
     throw Object.assign(new Error('Forbidden'), { status: 403 });
   }
 
-  const state = await createPmOAuthState(user.id, providerId);
-  return buildPmAuthorizeUrl(providerId, state);
+  const pkce = providerId === 'monday' ? createPkcePair() : null;
+  const state = await createPmOAuthState(
+    user.id,
+    providerId,
+    pkce ? { codeVerifier: pkce.codeVerifier } : {}
+  );
+  return buildPmAuthorizeUrl(
+    providerId,
+    state,
+    pkce ? { codeChallenge: pkce.codeChallenge } : {}
+  );
 }
 
 export async function GET(request) {
