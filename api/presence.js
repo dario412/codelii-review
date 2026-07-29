@@ -8,6 +8,19 @@ export async function OPTIONS() {
   return corsOptions('GET, POST, OPTIONS');
 }
 
+function clampPct(n) {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return null;
+  return Math.max(0, Math.min(100, v));
+}
+
+function normalizePage(page) {
+  if (page == null || page === '') return null;
+  let p = String(page).trim().replace(/^\//, '');
+  if (!p || p.endsWith('/')) p = `${p}index.html`.replace(/^\//, '');
+  return p || 'index.html';
+}
+
 export async function GET(request) {
   const user = await getUser(request);
   if (!user) return json({ error: 'Not authenticated' }, 401);
@@ -33,6 +46,9 @@ export async function GET(request) {
       name: entry.name,
       email: entry.email,
       lastSeen: entry.lastSeen,
+      page: entry.page || null,
+      x: typeof entry.x === 'number' ? entry.x : null,
+      y: typeof entry.y === 'number' ? entry.y : null,
     });
   }
 
@@ -56,11 +72,19 @@ export async function POST(request) {
   if (!store.presence) store.presence = {};
 
   const email = user.email.toLowerCase();
+  const prev = store.presence[email] || {};
+  const page = normalizePage(body.page);
+  const x = clampPct(body.x);
+  const y = clampPct(body.y);
+
   store.presence[email] = {
     id: user.id,
     name: user.name,
     email,
     lastSeen: new Date().toISOString(),
+    page: page != null ? page : prev.page || null,
+    x: x != null ? x : prev.x ?? null,
+    y: y != null ? y : prev.y ?? null,
   };
 
   const now = Date.now();

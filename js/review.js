@@ -15,6 +15,10 @@
     notifications: [],
     unreadCount: 0,
     onlineUsers: [],
+    followingUserId: null,
+    myCursor: { x: 50, y: 30 },
+    heartbeatTimer: null,
+    lastHeartbeatAt: 0,
     notificationsOpen: false,
     activeBubble: null,
     pendingPin: null,
@@ -134,14 +138,52 @@
     renderOnlineUsers();
     renderNotificationBadge();
     handleDeepLink();
+    handleFollowDeepLink();
     startLiveSync();
+    startPresenceTracking();
 
     document.addEventListener('visibilitychange', () => {
       startLiveSync();
-      if (!document.hidden) runLiveSync();
+      startPresenceTracking();
+      if (!document.hidden) {
+        runLiveSync();
+        sendHeartbeat(true);
+      }
     });
+  }
 
-    setInterval(sendHeartbeat, 30000);
+  function startPresenceTracking() {
+    if (state.heartbeatTimer) clearInterval(state.heartbeatTimer);
+    const ms = document.hidden ? 30000 : 3000;
+    state.heartbeatTimer = setInterval(() => sendHeartbeat(), ms);
+
+    if (!state._cursorBound) {
+      state._cursorBound = true;
+      let throttle = 0;
+      document.addEventListener(
+        'mousemove',
+        (e) => {
+          const docX = e.clientX + window.scrollX;
+          const docY = e.clientY + window.scrollY;
+          const w = Math.max(document.documentElement.scrollWidth, 1);
+          const h = Math.max(document.documentElement.scrollHeight, 1);
+          state.myCursor = {
+            x: (docX / w) * 100,
+            y: (docY / h) * 100,
+          };
+          const now = Date.now();
+          // Push sooner when the cursor is actually moving so followers feel live.
+          if (!document.hidden && now - state.lastHeartbeatAt > 1500) {
+            if (throttle) return;
+            throttle = setTimeout(() => {
+              throttle = 0;
+              sendHeartbeat();
+            }, 150);
+          }
+        },
+        { passive: true }
+      );
+    }
   }
 
   function startLiveSync() {
@@ -429,7 +471,9 @@
         closeCursorFixModal();
         closeBubble();
         closeNotifications();
-        if (state.selectedIds.size) clearSelection();
+        hideOnlineTip();
+        if (state.followingUserId) stopFollowing();
+        else if (state.selectedIds.size) clearSelection();
         else if (state.commentMode) toggleCommentMode();
       }
     });
@@ -457,12 +501,20 @@
     if (panel) panel.classList.remove('open');
   }
 
-  async function sendHeartbeat() {
+  async function sendHeartbeat(force = false) {
+    const now = Date.now();
+    if (!force && now - state.lastHeartbeatAt < 800) return;
+    state.lastHeartbeatAt = now;
     try {
       await fetch('/api/presence', {
         method: 'POST',
         headers: ReviewAuth.headers(),
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({
+          projectId,
+          page: currentPage(),
+          x: state.myCursor.x,
+          y: state.myCursor.y,
+        }),
       });
     } catch {
       /* ignore */
@@ -475,6 +527,11 @@
       if (!res.ok) return;
       const data = await res.json();
       state.onlineUsers = data.online || [];
+      if (state.followingUserId) {
+        const stillThere = state.onlineUsers.some((u) => u.id === state.followingUserId);
+        if (!stillThere) stopFollowing();
+        else updateFollowingView();
+      }
     } catch {
       /* ignore */
     }
@@ -492,9 +549,32 @@
     }
   }
 
+  function pageLabel(pagePath) {
+    if (!pagePath) return 'unknown page';
+    const clean = String(pagePath).replace(/^\//, '');
+    if (!clean || clean === 'index.html') return 'Home';
+    return clean.length > 36 ? `…${clean.slice(-34)}` : clean;
+  }
+
+  function colorForUser(idOrEmail) {
+    const seed = String(idOrEmail || '');
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+    const hues = [152, 198, 32, 268, 18, 210, 48, 320];
+    const hue = hues[hash % hues.length];
+    return `hsl(${hue} 72% 48%)`;
+  }
+
   function renderOnlineUsers() {
     const wrap = document.getElementById('review-online-wrap');
     if (!wrap) return;
+
+    const fingerprint = state.onlineUsers
+      .map((u) => `${u.id}:${u.name}:${u.page || ''}`)
+      .join('|') + `|f:${state.followingUserId || ''}`;
+    if (wrap.dataset.fp === fingerprint && wrap.childNodes.length) return;
+    wrap.dataset.fp = fingerprint;
+    hideOnlineTip();
     wrap.innerHTML = '';
 
     if (!state.onlineUsers.length) {
@@ -511,19 +591,187 @@
     ]));
 
     const faces = el('div', { class: 'review-online-faces' });
-    state.onlineUsers.slice(0, 4).forEach((u) => {
-      faces.appendChild(el('div', {
-        class: 'review-online-face',
-        title: `${u.name} · ${u.email || ''}`,
-      }, [initials(u.name)]));
+    state.onlineUsers.slice(0, 5).forEach((u) => {
+      const following = state.followingUserId === u.id;
+      const face = el('button', {
+        type: 'button',
+        class: `review-online-face${following ? ' is-following' : ''}`,
+        'aria-label': `${u.name} — ${pageLabel(u.page)}. Click to ${following ? 'stop watching' : 'see where they are'}`,
+        style: `--face-color: ${colorForUser(u.id || u.email)}`,
+        onmouseenter: (e) => showOnlineTip(e.currentTarget, u, following),
+        onmouseleave: hideOnlineTip,
+        onfocus: (e) => showOnlineTip(e.currentTarget, u, following),
+        onblur: hideOnlineTip,
+        onclick: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          hideOnlineTip();
+          if (state.followingUserId === u.id) stopFollowing();
+          else followUser(u);
+        },
+      }, [initials(u.name)]);
+
+      faces.appendChild(face);
     });
-    if (state.onlineUsers.length > 4) {
+    if (state.onlineUsers.length > 5) {
       faces.appendChild(el('div', {
         class: 'review-online-face review-online-face-more',
-        title: state.onlineUsers.slice(4).map((u) => u.name).join(', '),
-      }, [`+${state.onlineUsers.length - 4}`]));
+        title: state.onlineUsers.slice(5).map((u) => u.name).join(', '),
+      }, [`+${state.onlineUsers.length - 5}`]));
     }
     wrap.appendChild(faces);
+  }
+
+  function showOnlineTip(anchor, user, following) {
+    hideOnlineTip();
+    const tip = el('div', {
+      class: 'review-online-tip-float',
+      id: 'review-online-tip',
+      role: 'tooltip',
+    }, [
+      el('strong', {}, [user.name || 'Someone']),
+      el('span', {}, [pageLabel(user.page)]),
+      el('em', {}, [following ? 'Click to stop watching' : 'Click to see where they are']),
+    ]);
+    document.body.appendChild(tip);
+    const rect = anchor.getBoundingClientRect();
+    const tipRect = tip.getBoundingClientRect();
+    let left = rect.left + rect.width / 2 - tipRect.width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+    tip.style.left = `${left}px`;
+    tip.style.top = `${rect.bottom + 10}px`;
+    requestAnimationFrame(() => tip.classList.add('is-visible'));
+  }
+
+  function hideOnlineTip() {
+    document.getElementById('review-online-tip')?.remove();
+  }
+
+  function followUser(user) {
+    if (!user?.id) return;
+    state.followingUserId = user.id;
+
+    // Jump to their page if they're elsewhere, then resume follow via deep link.
+    if (user.page && !samePage(user.page, currentPage())) {
+      window.location.href = pageHref(user.page, `follow=${encodeURIComponent(user.id)}`);
+      return;
+    }
+
+    renderOnlineUsers();
+    updateFollowingView();
+  }
+
+  function stopFollowing() {
+    state.followingUserId = null;
+    removeFollowUi();
+    renderOnlineUsers();
+  }
+
+  function handleFollowDeepLink() {
+    const params = new URLSearchParams(window.location.search);
+    const followId = params.get('follow');
+    if (!followId) return;
+    state.followingUserId = followId;
+    // Clean the URL without a reload so refresh doesn't re-trigger awkwardly.
+    params.delete('follow');
+    const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ''}${window.location.hash}`;
+    window.history.replaceState({}, '', clean);
+    setTimeout(() => updateFollowingView(), 200);
+  }
+
+  function removeFollowUi() {
+    document.getElementById('review-follow-banner')?.remove();
+    document.getElementById('review-remote-cursor')?.remove();
+  }
+
+  function updateFollowingView() {
+    const user = state.onlineUsers.find((u) => u.id === state.followingUserId);
+    if (!user) {
+      removeFollowUi();
+      return;
+    }
+
+    // They moved to another page while we were watching — go with them.
+    if (user.page && !samePage(user.page, currentPage())) {
+      window.location.href = pageHref(user.page, `follow=${encodeURIComponent(user.id)}`);
+      return;
+    }
+
+    ensureFollowBanner(user);
+    renderRemoteCursor(user);
+  }
+
+  function ensureFollowBanner(user) {
+    let banner = document.getElementById('review-follow-banner');
+    if (!banner) {
+      banner = el('div', { class: 'review-follow-banner', id: 'review-follow-banner' });
+      document.body.appendChild(banner);
+    }
+    banner.innerHTML = '';
+    const face = el('span', {
+      class: 'review-follow-face',
+      style: `--face-color: ${colorForUser(user.id || user.email)}`,
+    }, [initials(user.name)]);
+    banner.append(
+      face,
+      el('div', { class: 'review-follow-copy' }, [
+        el('strong', {}, [`Watching ${user.name || 'someone'}`]),
+        el('span', {}, [`Live on ${pageLabel(user.page)} · cursor updates as they move`]),
+      ]),
+      el('button', {
+        type: 'button',
+        class: 'review-btn review-btn-ghost review-follow-stop',
+        onclick: () => stopFollowing(),
+      }, ['Stop'])
+    );
+  }
+
+  function renderRemoteCursor(user) {
+    if (user.x == null || user.y == null) {
+      document.getElementById('review-remote-cursor')?.remove();
+      return;
+    }
+
+    const layer = document.getElementById('review-pins-layer');
+    if (!layer) return;
+
+    let cursor = document.getElementById('review-remote-cursor');
+    if (!cursor) {
+      cursor = el('div', {
+        class: 'review-remote-cursor',
+        id: 'review-remote-cursor',
+        'aria-hidden': 'true',
+      });
+      cursor.innerHTML =
+        `<svg class="review-remote-cursor-pointer" width="18" height="22" viewBox="0 0 18 22" fill="none" xmlns="http://www.w3.org/2000/svg">` +
+        `<path d="M1.2 1.1L16.4 10.4L9.1 12.1L5.8 20.4L1.2 1.1Z" fill="currentColor" stroke="#0B1F1C" stroke-width="1.2" stroke-linejoin="round"/>` +
+        `</svg>` +
+        `<span class="review-remote-cursor-label"></span>`;
+      layer.appendChild(cursor);
+    } else if (cursor.parentElement !== layer) {
+      layer.appendChild(cursor);
+    }
+
+    const docW = Math.max(document.documentElement.scrollWidth, 1);
+    const docH = Math.max(document.documentElement.scrollHeight, 1);
+    const left = (user.x / 100) * docW;
+    const top = (user.y / 100) * docH;
+    const color = colorForUser(user.id || user.email);
+    cursor.style.setProperty('--cursor-color', color);
+    cursor.style.left = `${left}px`;
+    cursor.style.top = `${top}px`;
+    const label = cursor.querySelector('.review-remote-cursor-label');
+    if (label) label.textContent = user.name || 'Viewer';
+
+    // Keep their cursor roughly in view so the live preview stays useful.
+    const viewTop = window.scrollY;
+    const viewBottom = viewTop + window.innerHeight;
+    if (top < viewTop + 80 || top > viewBottom - 80) {
+      window.scrollTo({
+        top: Math.max(0, top - window.innerHeight / 2),
+        behavior: 'smooth',
+      });
+    }
   }
 
   function renderNotificationBadge() {
@@ -666,7 +914,7 @@
   async function captureViewportScreenshot() {
     const html2canvas = await getHtml2Canvas();
     const reviewNodes = document.querySelectorAll(
-      '.review-toolbar, .review-sidebar, .review-pins-layer, .review-bubble, .review-click-shield, .review-live-toasts, .review-mention-dropdown, .review-selection-bar, .review-cursor-fix-backdrop'
+      '.review-toolbar, .review-sidebar, .review-pins-layer, .review-bubble, .review-click-shield, .review-live-toasts, .review-mention-dropdown, .review-selection-bar, .review-cursor-fix-backdrop, .review-follow-banner, .review-online-tip-float'
     );
 
     reviewNodes.forEach((node) => {
@@ -1300,6 +1548,8 @@
 
   function renderPins() {
     const layer = document.getElementById('review-pins-layer');
+    const remote = document.getElementById('review-remote-cursor');
+    if (remote) remote.remove();
     layer.innerHTML = '';
     layer.style.height = `${document.documentElement.scrollHeight}px`;
 
@@ -1360,6 +1610,11 @@
 
       layer.appendChild(pin);
     });
+
+    if (state.followingUserId) {
+      const followed = state.onlineUsers.find((u) => u.id === state.followingUserId);
+      if (followed) renderRemoteCursor(followed);
+    }
 
     renderSelectionBar();
   }
