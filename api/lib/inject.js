@@ -72,6 +72,25 @@ if(typeof Worker!=="undefined"){
 
 /* ---- Force scroll / entrance animations to complete in review ---- */
 (function forceReveal(){
+  /* Credible (and many sites) skip IO and show content when reduced-motion is on. */
+  var _mm=window.matchMedia.bind(window);
+  window.matchMedia=function(query){
+    var q=String(query||"");
+    if(/prefers-reduced-motion\\s*:\\s*reduce/i.test(q)){
+      return {
+        matches:true,
+        media:q,
+        onchange:null,
+        addListener:function(){},
+        removeListener:function(){},
+        addEventListener:function(){},
+        removeEventListener:function(){},
+        dispatchEvent:function(){return false;}
+      };
+    }
+    return _mm(query);
+  };
+
   var OrigIO=window.IntersectionObserver;
   if(OrigIO){
     window.IntersectionObserver=function(callback,options){
@@ -109,6 +128,7 @@ if(typeof Worker!=="undefined"){
         try{
           var entry=forceEntry(target);
           queueMicrotask(function(){ try{ callback([entry],obs); }catch(err){} });
+          setTimeout(function(){ try{ callback([forceEntry(target)],obs); }catch(err){} }, 0);
         }catch(err){}
       };
       return obs;
@@ -131,6 +151,23 @@ if(typeof Worker!=="undefined"){
     }catch(e){}
   }
 
+  function forceShow(el){
+    if(!el||!el.style||isReviewChrome(el))return;
+    el.style.setProperty("opacity","1","important");
+    el.style.setProperty("transform","none","important");
+    el.style.setProperty("filter","none","important");
+    el.style.setProperty("translate","none","important");
+    el.style.setProperty("visibility","visible","important");
+    try{
+      el.classList.remove("opacity-0","invisible");
+      /* common Tailwind entrance offsets */
+      ["translate-y-4","translate-y-5","translate-y-6","translate-y-8","translate-y-10","translate-y-12","translate-y-16","-translate-y-4","-translate-y-8","-translate-y-10","translate-x-4","-translate-x-4","scale-95","scale-90"].forEach(function(c){
+        el.classList.remove(c);
+      });
+      el.classList.add("opacity-100");
+    }catch(e){}
+  }
+
   function revealInlineHidden(){
     var all=document.body?document.body.getElementsByTagName("*"):[];
     for(var i=0;i<all.length;i++){
@@ -139,35 +176,26 @@ if(typeof Worker!=="undefined"){
       var st=el.style;
       if(!st)continue;
       var op=st.opacity;
-      if(op!==""&&parseFloat(op)===0){
-        st.setProperty("opacity","1","important");
-        if(st.transform)st.setProperty("transform","none","important");
-        if(st.filter)st.setProperty("filter","none","important");
-        if(st.translate)st.setProperty("translate","none","important");
-        if(st.scale)st.setProperty("scale","none","important");
-      }
-      if(st.visibility==="hidden"&&!el.hasAttribute("hidden")){
-        /* skip intentionally collapsed UI with [hidden]; only style-based hides */
-        var cs=window.getComputedStyle(el);
-        if(cs&&cs.position==="fixed")continue;
-        st.setProperty("visibility","visible","important");
-      }
+      if(op!==""&&parseFloat(op)===0) forceShow(el);
     }
   }
 
   function revealComputedHidden(){
-    /* Catch CSS-class entrance states stuck at opacity 0 (no WAAPI handle). */
-    var candidates=document.querySelectorAll('[class*="intro"],[class*="Intro"],[class*="reveal"],[class*="Reveal"],[class*="animate"],[class*="Animate"],[class*="fade"],[class*="Fade"],[class*="motion"],[data-animate],[data-aos],.aos-init,[style*="opacity"]');
-    for(var i=0;i<candidates.length;i++){
-      var el=candidates[i];
+    if(!document.body)return;
+    /* Tailwind opacity-0 cards (Credible roster) + any computed opacity-0 content */
+    var classHits=document.querySelectorAll('.opacity-0,[class*="opacity-0"],.invisible,[class*="translate-y-"]');
+    for(var i=0;i<classHits.length;i++) forceShow(classHits[i]);
+
+    var all=document.body.getElementsByTagName("*");
+    for(var j=0;j<all.length;j++){
+      var el=all[j];
       if(isReviewChrome(el))continue;
       var cs=window.getComputedStyle(el);
-      if(!cs)continue;
-      if(parseFloat(cs.opacity)===0 && cs.display!=="none"){
-        el.style.setProperty("opacity","1","important");
-        el.style.setProperty("transform","none","important");
-        el.style.setProperty("filter","none","important");
-      }
+      if(!cs||cs.display==="none")continue;
+      if(parseFloat(cs.opacity)!==0)continue;
+      var r=el.getBoundingClientRect();
+      if(r.width<2&&r.height<2)continue;
+      forceShow(el);
     }
   }
 
@@ -182,9 +210,9 @@ if(typeof Worker!=="undefined"){
     );
     var view=window.innerHeight||800;
     var y=0;
-    var step=Math.max(Math.floor(view*0.55),280);
+    var step=Math.max(Math.floor(view*0.45),220);
     function tick(){
-      if(y>max){
+      if(y>max+view){
         window.scrollTo(0,startY);
         try{
           window.dispatchEvent(new Event("scroll"));
@@ -221,10 +249,13 @@ if(typeof Worker!=="undefined"){
 
   function schedule(){
     runReveal(false);
-    setTimeout(function(){ runReveal(true); }, 400);
-    setTimeout(function(){ runReveal(false); }, 1200);
-    setTimeout(function(){ runReveal(false); }, 2800);
+    setTimeout(function(){ runReveal(true); }, 300);
+    setTimeout(function(){ runReveal(false); }, 900);
+    setTimeout(function(){ runReveal(false); }, 2000);
+    setTimeout(function(){ runReveal(false); }, 4000);
   }
+
+  try{ document.documentElement.classList.add("codelii-review-reveal"); }catch(e){}
 
   if(document.readyState==="loading"){
     document.addEventListener("DOMContentLoaded",schedule,{once:true});
@@ -234,12 +265,36 @@ if(typeof Worker!=="undefined"){
   window.addEventListener("load",function(){
     runReveal(true);
   });
+
+  /* React hydrates later and re-applies opacity-0 — keep clearing it. */
+  try{
+    var moT=null;
+    var mo=new MutationObserver(function(){
+      if(moT)return;
+      moT=setTimeout(function(){ moT=null; revealComputedHidden(); }, 60);
+    });
+    var startMo=function(){
+      if(!document.body)return;
+      mo.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:["class","style"]});
+    };
+    if(document.body) startMo();
+    else document.addEventListener("DOMContentLoaded",startMo,{once:true});
+  }catch(e){}
 })();
 })();</script>
 <style data-codelii-reveal>
-  /* Nudge CSS entrance animations to their end state quickly in review */
-  html.codelii-review-reveal :where([class*="intro"],[class*="Intro"],[class*="reveal"],[class*="Reveal"],[class*="word"],[class*="Word"],[class*="fade"],[class*="Fade"],[data-aos],.aos-animate){
-    animation-delay: 0s !important;
+  /* Credible roster cards + Tailwind entrance states — show end state in review */
+  html.codelii-review-reveal .opacity-0,
+  html.codelii-review-reveal [class*="opacity-0"] {
+    opacity: 1 !important;
+    transform: none !important;
+    translate: none !important;
+    filter: none !important;
+    visibility: visible !important;
+  }
+  html.codelii-review-reveal .invisible {
+    visibility: visible !important;
+    opacity: 1 !important;
   }
 </style>`;
 }
