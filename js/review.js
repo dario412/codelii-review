@@ -28,6 +28,8 @@
     pageApproval: null,
     activeFixRunId: null,
     fixPollTimer: null,
+    activity: [],
+    progress: null,
   };
 
   const page = currentPage();
@@ -123,6 +125,7 @@
     await loadApprovals();
     await loadNotifications();
     await loadPresence();
+    loadActivity();
     sendHeartbeat();
     renderPins();
     renderSidebar();
@@ -168,6 +171,7 @@
     if (commentsChanged) {
       renderPins();
       renderSidebar();
+      loadActivity();
     }
 
     const me = ReviewAuth.getUser()?.id;
@@ -192,7 +196,7 @@
         const replies = (c.replies || [])
           .map((r) => `${r.id}:${r.createdAt}`)
           .join(',');
-        return `${c.id}:${c.resolved}:${c.hidden ? 1 : 0}:${c.screenshot}:${c.createdAt}:${replies}`;
+        return `${c.id}:${c.resolved}:${c.hidden ? 1 : 0}:${c.assigneeId || ''}:${c.githubIssueNumber || ''}:${c.screenshot}:${c.createdAt}:${replies}`;
       })
       .join('|');
   }
@@ -397,7 +401,16 @@
           el('span', { 'data-tab-label': '' }, ['Resolved']),
           el('span', { class: 'review-sidebar-tab-count', id: 'review-tab-resolved-count' }, ['0']),
         ]),
+        el('button', {
+          type: 'button',
+          class: 'review-sidebar-tab',
+          id: 'review-tab-activity',
+          onclick: () => setSidebarTab('activity'),
+        }, [
+          el('span', { 'data-tab-label': '' }, ['Activity']),
+        ]),
       ]),
+      el('div', { class: 'review-progress', id: 'review-progress', hidden: true }),
       el('div', { class: 'review-sidebar-list', id: 'review-sidebar-list' }),
     ]);
 
@@ -528,6 +541,7 @@
     if (n.type === 'tag') return `${n.fromName} tagged you`;
     if (n.type === 'reply') return `${n.fromName} replied to your comment`;
     if (n.type === 'reply_tagged') return `${n.fromName} replied on a thread you're in`;
+    if (n.type === 'assign') return `${n.fromName} assigned you`;
     return `${n.fromName} notified you`;
   }
 
@@ -614,6 +628,8 @@
     state.sidebarTab = tab;
     document.getElementById('review-tab-open')?.classList.toggle('active', tab === 'open');
     document.getElementById('review-tab-resolved')?.classList.toggle('active', tab === 'resolved');
+    document.getElementById('review-tab-activity')?.classList.toggle('active', tab === 'activity');
+    if (tab === 'activity') loadActivity();
     renderSidebar();
   }
 
@@ -626,6 +642,7 @@
   }
 
   function sidebarComments() {
+    if (state.sidebarTab === 'activity') return [];
     return state.sidebarTab === 'resolved' ? resolvedComments() : openComments();
   }
 
@@ -1021,6 +1038,7 @@
       await loadComments();
       await loadUsers();
       await loadNotifications();
+      loadActivity();
       renderPins();
       renderSidebar();
       renderNotificationBadge();
@@ -1242,6 +1260,7 @@
         if (!res.ok) throw new Error(data.error || 'Could not revoke');
         state.pageApproval = null;
         renderApproveButton();
+        loadActivity();
         showPromptToast('Sign-off revoked');
       } catch (err) {
         alert(err.message || 'Could not revoke sign-off');
@@ -1265,6 +1284,7 @@
       if (!res.ok) throw new Error(data.error || 'Could not approve');
       state.pageApproval = data.approval;
       renderApproveButton();
+      loadActivity();
       showPromptToast(`Approved · ${formatTime(data.approval.approvedAt)}`);
     } catch (err) {
       alert(err.message || 'Could not approve page');
@@ -1610,6 +1630,50 @@
       }, [icon(comment.hidden ? 'eye' : 'eyeSlash')])
       : null;
 
+    const assignBtn = el('button', {
+      type: 'button',
+      class: 'review-action review-action-ghost',
+      'data-tip': comment.assigneeId ? 'Change or clear assignee' : 'Assign to a teammate',
+      onclick: (e) => {
+        e.stopPropagation();
+        openAssignPicker(comment, e.currentTarget);
+      },
+    }, [
+      icon('users', 15),
+      el('span', {}, [
+        comment.assigneeName
+          ? `Assigned · ${String(comment.assigneeName).split(' ')[0]}`
+          : 'Assign',
+      ]),
+    ]);
+
+    const issueBtn = !canUseCursorTools
+      ? null
+      : comment.githubIssueUrl
+        ? el('a', {
+          class: 'review-action review-action-ghost',
+          href: comment.githubIssueUrl,
+          target: '_blank',
+          rel: 'noopener',
+          'data-tip': 'Open GitHub issue',
+          onclick: (e) => e.stopPropagation(),
+        }, [
+          icon('gitPullRequest', 15),
+          el('span', {}, [`Issue #${comment.githubIssueNumber}`]),
+        ])
+        : el('button', {
+          type: 'button',
+          class: 'review-action review-action-ghost',
+          'data-tip': 'Create a GitHub issue from this comment',
+          onclick: (e) => {
+            e.stopPropagation();
+            createGitHubIssueFromComment(comment, e.currentTarget);
+          },
+        }, [
+          icon('gitPullRequest', 15),
+          el('span', {}, ['Create issue']),
+        ]);
+
     // Without the Cursor row, Reply is the bubble's primary action.
     const secondary = el('div', { class: 'review-action-row' }, [
       showReplyButton
@@ -1623,6 +1687,7 @@
         }, [icon('reply'), el('span', {}, ['Reply'])])
         : null,
       resolveBtn,
+      assignBtn,
       hideBtn,
       canDelete
         ? el('button', {
@@ -1642,9 +1707,213 @@
     return el('div', {
       class: `review-bubble-resolve${comment.resolved ? ' review-bubble-resolve-done' : ''}`,
     }, [
-      canUseCursorTools ? el('div', { class: 'review-action-row' }, [fixBtn, promptBtn]) : null,
+      canUseCursorTools
+        ? el('div', { class: 'review-action-row' }, [fixBtn, promptBtn, issueBtn].filter(Boolean))
+        : null,
       secondary,
     ].filter(Boolean));
+  }
+
+  function closeAssignPicker() {
+    document.getElementById('review-assign-picker')?.remove();
+  }
+
+  function openAssignPicker(comment, anchor) {
+    closeAssignPicker();
+    const users = state.users || [];
+    if (!users.length) {
+      showPromptToast('No teammates on this project yet');
+      return;
+    }
+
+    const picker = el('div', {
+      class: 'review-assign-picker',
+      id: 'review-assign-picker',
+      onclick: (e) => e.stopPropagation(),
+    });
+
+    picker.appendChild(el('div', { class: 'review-assign-picker-label' }, ['Assign to']));
+
+    users.forEach((u) => {
+      const active = comment.assigneeId === u.id;
+      picker.appendChild(el('button', {
+        type: 'button',
+        class: `review-assign-picker-item${active ? ' is-active' : ''}`,
+        onclick: async (e) => {
+          e.stopPropagation();
+          closeAssignPicker();
+          await setAssignee(comment, active ? null : u.id);
+        },
+      }, [
+        el('div', { class: 'review-assign-avatar' }, [initials(u.name)]),
+        el('div', { class: 'review-assign-who' }, [
+          el('strong', {}, [u.name || u.email]),
+          el('span', {}, [u.email || '']),
+        ]),
+        active ? el('span', { class: 'review-assign-check' }, ['✓']) : null,
+      ].filter(Boolean)));
+    });
+
+    if (comment.assigneeId) {
+      picker.appendChild(el('button', {
+        type: 'button',
+        class: 'review-assign-picker-clear',
+        onclick: async (e) => {
+          e.stopPropagation();
+          closeAssignPicker();
+          await setAssignee(comment, null);
+        },
+      }, ['Clear assignee']));
+    }
+
+    document.body.appendChild(picker);
+    const rect = anchor.getBoundingClientRect();
+    const width = 240;
+    let left = rect.left;
+    let top = rect.bottom + 8;
+    if (left + width > window.innerWidth - 12) left = window.innerWidth - width - 12;
+    if (top + 280 > window.innerHeight) top = Math.max(12, rect.top - 280);
+    picker.style.left = `${Math.max(12, left)}px`;
+    picker.style.top = `${top}px`;
+
+    const dismiss = (e) => {
+      if (e.target.closest?.('#review-assign-picker')) return;
+      closeAssignPicker();
+      document.removeEventListener('mousedown', dismiss, true);
+    };
+    setTimeout(() => document.addEventListener('mousedown', dismiss, true), 0);
+  }
+
+  async function setAssignee(comment, assigneeId) {
+    const res = await fetch('/api/comments', {
+      method: 'PATCH',
+      headers: ReviewAuth.headers(),
+      body: JSON.stringify({ id: comment.id, projectId, assigneeId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'Could not update assignee');
+      return;
+    }
+    await loadComments();
+    loadActivity();
+    renderPins();
+    renderSidebar();
+    const updated = state.comments.find((c) => c.id === comment.id);
+    if (updated) openViewBubble(updated);
+    showPromptToast(
+      assigneeId
+        ? `Assigned to ${data.comment?.assigneeName || 'teammate'}`
+        : 'Assignee cleared'
+    );
+  }
+
+  async function createGitHubIssueFromComment(comment, btn) {
+    if (btn) {
+      btn.disabled = true;
+      const label = btn.querySelector('span:last-child');
+      if (label) label.textContent = 'Creating…';
+    }
+    try {
+      const res = await fetch('/api/github-issue', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ projectId, commentId: comment.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not create issue');
+      await loadComments();
+      loadActivity();
+      renderSidebar();
+      const updated = state.comments.find((c) => c.id === comment.id) || data.comment;
+      if (updated) openViewBubble(updated);
+      showPromptToast(
+        data.alreadyExists
+          ? `Issue #${data.issue.number} already linked`
+          : `GitHub issue #${data.issue.number} created`
+      );
+      if (data.issue?.url && !data.alreadyExists) {
+        window.open(data.issue.url, '_blank', 'noopener');
+      }
+    } catch (err) {
+      alert(err.message || 'Could not create GitHub issue');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  async function loadActivity() {
+    try {
+      const res = await fetch(withProject('/api/activity'), { headers: ReviewAuth.headers() });
+      if (!res.ok) return;
+      const data = await res.json();
+      state.activity = data.events || [];
+      state.progress = data.progress || null;
+      if (state.sidebarTab === 'activity') renderSidebar();
+      else paintProgress();
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function paintProgress() {
+    const host = document.getElementById('review-progress');
+    if (!host) return;
+    const p = state.progress;
+    if (!p || state.sidebarTab !== 'activity') {
+      host.hidden = true;
+      host.innerHTML = '';
+      return;
+    }
+    host.hidden = false;
+    host.innerHTML = '';
+    const bits = [
+      ['Open', p.open],
+      ['Resolved', p.resolved],
+      ['Assigned', p.assigned],
+      ['Approved', p.approvedPages],
+    ];
+    if (canUseCursorTools) bits.push(['Issues', p.issues]);
+    bits.forEach(([label, n]) => {
+      host.appendChild(el('div', { class: 'review-progress-stat' }, [
+        el('strong', {}, [String(n)]),
+        el('span', {}, [label]),
+      ]));
+    });
+  }
+
+  function activityLabel(ev) {
+    switch (ev.type) {
+      case 'comment_created':
+        return `${ev.actorName || 'Someone'} left feedback`;
+      case 'comment_resolved':
+        return `${ev.actorName || 'Someone'} resolved a comment`;
+      case 'comment_reopened':
+        return `${ev.actorName || 'Someone'} reopened a comment`;
+      case 'assigned':
+        return `${ev.actorName || 'Someone'} assigned ${ev.assigneeName || 'a teammate'}`;
+      case 'unassigned':
+        return `${ev.actorName || 'Someone'} cleared an assignee`;
+      case 'github_issue':
+        return `${ev.actorName || 'Someone'} opened issue #${ev.githubIssueNumber}`;
+      case 'page_approved':
+        return `${ev.actorName || 'Someone'} approved ${formatPage(ev.page || '')}`;
+      case 'page_revoked':
+        return `${ev.actorName || 'Someone'} revoked approval on ${formatPage(ev.page || '')}`;
+      case 'cursor_started':
+        return `${ev.actorName || 'Someone'} started a Cursor fix`;
+      default:
+        return ev.message || 'Project update';
+    }
+  }
+
+  function activityIcon(type) {
+    if (type === 'assigned' || type === 'unassigned') return 'users';
+    if (type === 'github_issue') return 'gitPullRequest';
+    if (type === 'page_approved' || type === 'page_revoked') return 'sealCheck';
+    if (type === 'comment_resolved' || type === 'comment_reopened') return 'checkCircle';
+    if (type === 'cursor_started') return 'sparkle';
+    return 'chat';
   }
 
   async function submitReply(parentId, textarea) {
@@ -1700,6 +1969,7 @@
     });
     closeBubble();
     await loadComments();
+    loadActivity();
     if (!wasResolved) {
       state.sidebarTab = 'resolved';
       setSidebarTab('resolved');
@@ -1763,12 +2033,58 @@
     const openItems = openComments();
     const resolvedItems = resolvedComments();
     const items = sidebarComments();
-    if (count) count.textContent = String(items.length);
 
     const openCountEl = document.getElementById('review-tab-open-count');
     const resolvedCountEl = document.getElementById('review-tab-resolved-count');
     if (openCountEl) openCountEl.textContent = String(openItems.length);
     if (resolvedCountEl) resolvedCountEl.textContent = String(resolvedItems.length);
+
+    paintProgress();
+
+    if (state.sidebarTab === 'activity') {
+      if (count) count.textContent = String(state.activity.length);
+      list.innerHTML = '';
+      if (!state.activity.length) {
+        list.appendChild(el('div', { class: 'review-sidebar-empty' }, [
+          icon('list', 28),
+          el('p', {}, ['No activity yet.']),
+          el('span', {}, ['Comments, assignments, approvals and issues will show up here.']),
+        ]));
+      } else {
+        state.activity.forEach((ev) => {
+          const item = el('div', {
+            class: 'review-activity-item',
+            onclick: () => {
+              if (ev.githubIssueUrl && ev.type === 'github_issue' && !ev.commentId) {
+                window.open(ev.githubIssueUrl, '_blank', 'noopener');
+                return;
+              }
+              if (!ev.commentId) return;
+              const c = state.comments.find((x) => x.id === ev.commentId);
+              if (c) navigateToComment(c);
+            },
+          }, [
+            el('div', { class: 'review-activity-icon' }, [icon(activityIcon(ev.type), 16)]),
+            el('div', { class: 'review-activity-body' }, [
+              el('div', { class: 'review-activity-text' }, [activityLabel(ev)]),
+              el('div', { class: 'review-activity-meta' }, [
+                el('span', {}, [
+                  [
+                    ev.page ? formatPage(ev.page) : '',
+                    formatTime(ev.createdAt),
+                  ].filter(Boolean).join(' · '),
+                ]),
+              ]),
+            ]),
+          ]);
+          list.appendChild(item);
+        });
+      }
+      updateSidebarActionButtons(openItems.length);
+      return;
+    }
+
+    if (count) count.textContent = String(items.length);
 
     if (!items.length) {
       list.innerHTML = '';
@@ -1800,6 +2116,18 @@
         badges.appendChild(el('span', { class: 'review-sidebar-chip review-sidebar-chip-hidden' }, [
           icon('eyeSlash', 12),
           el('span', {}, ['Hidden']),
+        ]));
+      }
+      if (c.assigneeName) {
+        badges.appendChild(el('span', { class: 'review-sidebar-chip review-sidebar-chip-assign' }, [
+          icon('users', 12),
+          el('span', {}, [String(c.assigneeName).split(' ')[0]]),
+        ]));
+      }
+      if (c.githubIssueNumber) {
+        badges.appendChild(el('span', { class: 'review-sidebar-chip review-sidebar-chip-issue' }, [
+          icon('gitPullRequest', 12),
+          el('span', {}, [`#${c.githubIssueNumber}`]),
         ]));
       }
       if (c.screenshot) {
@@ -1839,6 +2167,13 @@
         }, btnContent('sparkle', 'Fix', 14)),
       ]);
 
+      const metaBits = [el('span', { class: 'review-sidebar-item-author' }, [c.authorName])];
+      if (c.assigneeName) {
+        metaBits.push(el('span', { class: 'review-sidebar-item-assignee' }, [
+          ` → ${c.assigneeName}`,
+        ]));
+      }
+
       const item = el('div', {
         class: [
           'review-sidebar-item',
@@ -1854,9 +2189,7 @@
         ]),
         textEl,
         badges.childNodes.length ? badges : null,
-        el('div', { class: 'review-sidebar-item-meta' }, [
-          el('span', { class: 'review-sidebar-item-author' }, [c.authorName]),
-        ]),
+        el('div', { class: 'review-sidebar-item-meta' }, metaBits),
         !c.resolved ? actions : null,
       ].filter(Boolean));
       list.appendChild(item);

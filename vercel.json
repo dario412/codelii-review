@@ -3,6 +3,7 @@
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/join", "destination": "/join.html" },
+    { "source": "/integrations", "destination": "/integrations.html" },
     { "source": "/p/:projectId", "destination": "/api/proxy?projectId=:projectId&path=" },
     { "source": "/p/:projectId/:path(.*)", "destination": "/api/proxy?projectId=:projectId&path=:path" },
     { "source": "/s/:projectId", "destination": "/api/serve?projectId=:projectId&path=" },

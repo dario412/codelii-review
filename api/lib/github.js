@@ -161,3 +161,52 @@ export async function ingestGitHubRepo(projectId, owner, repo, ref = 'HEAD') {
 
   return { files: stored };
 }
+
+/**
+ * Open a GitHub issue on the linked repo.
+ * Requires GITHUB_TOKEN with issues:write. Public repos still need a token to create issues.
+ */
+export async function createGitHubIssue({ repoUrl, title, body, labels = [] }) {
+  const token = (process.env.GITHUB_TOKEN || '').trim();
+  if (!token) {
+    throw new Error(
+      'GITHUB_TOKEN is not set. Add a GitHub personal access token with issues:write to create issues from comments.'
+    );
+  }
+
+  const parsed = parseGitHubUrl(repoUrl);
+  if (!parsed) throw new Error('Invalid GitHub repository URL');
+
+  const res = await fetch(
+    `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/issues`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'codelii-review',
+        'X-GitHub-Api-Version': '2022-11-28',
+      },
+      body: JSON.stringify({
+        title: String(title || 'Review feedback').slice(0, 200),
+        body: String(body || ''),
+        ...(labels.filter(Boolean).length
+          ? { labels: labels.filter(Boolean).slice(0, 5) }
+          : {}),
+      }),
+    }
+  );
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.message || `GitHub API error ${res.status}`;
+    throw new Error(msg);
+  }
+
+  return {
+    number: data.number,
+    url: data.html_url,
+    title: data.title,
+  };
+}

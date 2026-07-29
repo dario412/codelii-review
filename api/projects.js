@@ -2,9 +2,11 @@ import {
   getCore,
   saveCore,
   findProject,
+  findClient,
   isMember,
   isOwner,
   publicProject,
+  publicClient,
   newId,
   saveProjectStore,
   deleteProjectStore,
@@ -14,7 +16,28 @@ import { json, corsOptions } from './lib/http.js';
 import { ingestGitHubRepo, parseGitHubUrl } from './lib/github.js';
 import { isStripeConfigured } from './lib/stripe.js';
 import { canCreateProjects, blockedReason, syncFromStripe } from './lib/billing.js';
+import { normalizeSlackWebhook } from './lib/slack.js';
 
+function enrichProject(project, core, user) {
+  const card = {
+    ...publicProject(project, core.users),
+    viewUrl: projectViewUrl(project),
+  };
+  if (project.clientId) {
+    const client = findClient(core, project.clientId);
+    if (client) {
+      card.clientId = client.id;
+      card.clientName = client.name;
+      card.clientColor = client.color || null;
+    } else {
+      card.clientId = null;
+    }
+  }
+  if (isOwner(project, user.id)) {
+    card.slackWebhookUrl = project.slackWebhookUrl || '';
+  }
+  return card;
+}
 function detectSource(input) {
   const raw = (input || '').trim();
   if (!raw) return null;
@@ -56,11 +79,12 @@ export async function GET(request) {
   if (!user) return json({ error: 'Not authenticated' }, 401);
 
   const core = await getCore();
+  const account = core.users.find((u) => u.id === user.id);
   const owned = [];
   const invited = [];
 
   for (const p of core.projects) {
-    const card = { ...publicProject(p, core.users), viewUrl: projectViewUrl(p) };
+    const card = enrichProject(p, core, user);
     if (p.ownerId === user.id) owned.push(card);
     else if (isMember(p, user.id)) invited.push(card);
   }
@@ -68,7 +92,20 @@ export async function GET(request) {
   owned.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   invited.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
-  return json({ owned, invited });
+  const clients = (core.clients || [])
+    .filter((c) => c.ownerId === user.id)
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map((c) => ({
+      ...publicClient(c),
+      projectCount: owned.filter((p) => p.clientId === c.id).length,
+    }));
+
+  return json({
+    owned,
+    invited,
+    clients,
+    slackConnected: Boolean(account?.slack?.webhookUrl),
+  });
 }
 
 export async function POST(request) {
@@ -137,6 +174,15 @@ export async function POST(request) {
       createdAt: new Date().toISOString(),
     };
 
+    const clientId = body.clientId || null;
+    if (clientId) {
+      const client = findClient(core, clientId);
+      if (!client || client.ownerId !== user.id) {
+        return json({ error: 'Client not found' }, 400);
+      }
+      project.clientId = client.id;
+    }
+
     core.projects.push(project);
     await saveCore(core);
     await saveProjectStore(project.id, { comments: [], notifications: [], presence: {} });
@@ -153,7 +199,7 @@ export async function POST(request) {
         return json(
           {
             error: err.message || 'Failed to import GitHub repository',
-            project: { ...publicProject(project, core.users), viewUrl: projectViewUrl(project) },
+            project: enrichProject(project, core, user),
           },
           422
         );
@@ -163,8 +209,7 @@ export async function POST(request) {
     return json(
       {
         project: {
-          ...publicProject(project, core.users),
-          viewUrl: projectViewUrl(project),
+          ...enrichProject(project, core, user),
           linkToken: project.linkToken,
         },
       },
@@ -223,6 +268,29 @@ export async function PATCH(request) {
     project.autoCreatePR = body.autoCreatePR;
   }
 
+  if (Object.prototype.hasOwnProperty.call(body, 'clientId')) {
+    if (!isOwner(project, user.id)) return json({ error: 'Only the owner can change the client' }, 403);
+    const next = body.clientId;
+    if (next === null || next === '') {
+      delete project.clientId;
+    } else {
+      const client = findClient(core, next);
+      if (!client || client.ownerId !== user.id) {
+        return json({ error: 'Client not found' }, 400);
+      }
+      project.clientId = client.id;
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'slackWebhookUrl')) {
+    if (!isOwner(project, user.id)) return json({ error: 'Only the owner can change Slack settings' }, 403);
+    try {
+      project.slackWebhookUrl = normalizeSlackWebhook(body.slackWebhookUrl);
+    } catch (err) {
+      return json({ error: err.message }, 400);
+    }
+  }
+
   if (body.regenerateLink) {
     if (!isOwner(project, user.id)) return json({ error: 'Only the owner can regenerate the link' }, 403);
     project.linkToken = newId();
@@ -238,8 +306,7 @@ export async function PATCH(request) {
   await saveCore(core);
   return json({
     project: {
-      ...publicProject(project, core.users),
-      viewUrl: projectViewUrl(project),
+      ...enrichProject(project, core, user),
       linkToken: isOwner(project, user.id) ? project.linkToken : undefined,
     },
   });

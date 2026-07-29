@@ -8,7 +8,9 @@ import {
   newId,
 } from './lib/store.js';
 import { getUser } from './lib/auth.js';
-import { notifyCommentTagged, notifyReply } from './lib/notifications.js';
+import { notifyCommentTagged, notifyReply, addNotification } from './lib/notifications.js';
+import { pushActivity } from './lib/activity.js';
+import { notifySlack } from './lib/slack.js';
 import { json, corsOptions } from './lib/http.js';
 
 export async function OPTIONS() {
@@ -79,6 +81,14 @@ export async function POST(request) {
     notifyReply(store, parent, reply, user);
     await saveProjectStore(projectId, store);
 
+    notifySlack(core, project, {
+      title: 'New reply',
+      body: reply.text,
+      page: parent.page,
+      actorName: user.name,
+      commentId: parent.id,
+    });
+
     const notifyTags = [...tags];
     if (parent.authorEmail !== user.email && !tags.some((t) => t.email === parent.authorEmail)) {
       notifyTags.push({ email: parent.authorEmail, name: parent.authorName, isAuthor: true });
@@ -125,7 +135,23 @@ export async function POST(request) {
 
   store.comments.push(comment);
   notifyCommentTagged(store, comment, user, comment.tags);
+  pushActivity(store, {
+    type: 'comment_created',
+    actorId: user.id,
+    actorName: user.name,
+    commentId: comment.id,
+    page: comment.page,
+    message: comment.text.slice(0, 160),
+  });
   await saveProjectStore(projectId, store);
+
+  notifySlack(core, project, {
+    title: 'New comment',
+    body: comment.text,
+    page: comment.page,
+    actorName: user.name,
+    commentId: comment.id,
+  });
 
   if (tags.length > 0) {
     await notifyEmail(project, comment, comment, user, tags, request, false);
@@ -139,7 +165,7 @@ export async function PATCH(request) {
   if (!user) return json({ error: 'Not authenticated' }, 401);
 
   const body = await request.json();
-  const { id, resolved, text, hidden, projectId } = body;
+  const { id, resolved, text, hidden, assigneeId, projectId } = body;
   if (!id || !projectId) return json({ error: 'id and projectId required' }, 400);
 
   const core = await getCore();
@@ -165,8 +191,87 @@ export async function PATCH(request) {
     }
   }
 
-  if (typeof resolved === 'boolean') comment.resolved = resolved;
+  if (typeof resolved === 'boolean' && resolved !== comment.resolved) {
+    comment.resolved = resolved;
+    pushActivity(store, {
+      type: resolved ? 'comment_resolved' : 'comment_reopened',
+      actorId: user.id,
+      actorName: user.name,
+      commentId: comment.id,
+      page: comment.page,
+      message: comment.text.slice(0, 160),
+    });
+    notifySlack(core, project, {
+      title: resolved ? 'Comment resolved' : 'Comment reopened',
+      body: comment.text,
+      page: comment.page,
+      actorName: user.name,
+      commentId: comment.id,
+    });
+  }
+
   if (text !== undefined) comment.text = text.trim();
+
+  // Assign / unassign — any member. Turns feedback into task ownership.
+  if (Object.prototype.hasOwnProperty.call(body, 'assigneeId')) {
+    if (assigneeId === null || assigneeId === '') {
+      const prevName = comment.assigneeName;
+      delete comment.assigneeId;
+      delete comment.assigneeName;
+      delete comment.assigneeEmail;
+      delete comment.assignedAt;
+      delete comment.assignedBy;
+      pushActivity(store, {
+        type: 'unassigned',
+        actorId: user.id,
+        actorName: user.name,
+        commentId: comment.id,
+        page: comment.page,
+        assigneeName: prevName || null,
+      });
+    } else {
+      const memberIds = project.memberIds || [];
+      if (!memberIds.includes(assigneeId) && project.ownerId !== assigneeId) {
+        return json({ error: 'Assignee must be a project member' }, 400);
+      }
+      const assignee = core.users.find((u) => u.id === assigneeId);
+      if (!assignee) return json({ error: 'Assignee not found' }, 404);
+
+      comment.assigneeId = assignee.id;
+      comment.assigneeName = assignee.name;
+      comment.assigneeEmail = assignee.email;
+      comment.assignedAt = new Date().toISOString();
+      comment.assignedBy = user.id;
+
+      addNotification(store, {
+        userEmail: assignee.email,
+        type: 'assign',
+        commentId: comment.id,
+        page: comment.page,
+        message: comment.text,
+        fromName: user.name,
+        fromEmail: user.email,
+      });
+
+      pushActivity(store, {
+        type: 'assigned',
+        actorId: user.id,
+        actorName: user.name,
+        commentId: comment.id,
+        page: comment.page,
+        assigneeId: assignee.id,
+        assigneeName: assignee.name,
+        message: comment.text.slice(0, 160),
+      });
+      notifySlack(core, project, {
+        title: `Assigned to ${assignee.name}`,
+        body: comment.text,
+        page: comment.page,
+        actorName: user.name,
+        commentId: comment.id,
+      });
+    }
+  }
 
   await saveProjectStore(projectId, store);
   return json({ comment });

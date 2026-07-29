@@ -16,6 +16,8 @@ import {
 } from './lib/store.js';
 import { getUser } from './lib/auth.js';
 import { json, corsOptions } from './lib/http.js';
+import { pushActivity } from './lib/activity.js';
+import { notifySlack } from './lib/slack.js';
 
 export async function OPTIONS() {
   return corsOptions('GET, POST, DELETE, OPTIONS');
@@ -103,7 +105,20 @@ export async function POST(request) {
   };
   store.pageApprovals.unshift(approval);
   store.pageApprovals = store.pageApprovals.slice(0, 200);
+  pushActivity(store, {
+    type: 'page_approved',
+    actorId: user.id,
+    actorName: user.name,
+    page,
+  });
   await saveProjectStore(projectId, store);
+
+  notifySlack(core, project, {
+    title: 'Page approved',
+    body: page,
+    page,
+    actorName: user.name,
+  });
 
   return json({ approval }, 201);
 }
@@ -141,6 +156,12 @@ export async function DELETE(request) {
   target.revokedBy = user.id;
   target.revokedByName = user.name;
   target.revokeReason = 'revoked';
+  pushActivity(store, {
+    type: 'page_revoked',
+    actorId: user.id,
+    actorName: user.name,
+    page: target.page,
+  });
   await saveProjectStore(projectId, store);
 
   return json({ ok: true, approval: target });

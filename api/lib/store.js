@@ -1,13 +1,14 @@
 import { put, get, del, list } from '@vercel/blob';
 
 const CORE_PATH = 'review-data/core.json';
-const EMPTY_CORE = { users: [], projects: [], stripeEvents: [] };
+const EMPTY_CORE = { users: [], projects: [], clients: [], stripeEvents: [] };
 const EMPTY_PROJECT = {
   comments: [],
   notifications: [],
   presence: {},
   cursorRuns: [],
   pageApprovals: [],
+  activityEvents: [],
 };
 
 function isVercel() {
@@ -37,6 +38,8 @@ function normalizeCore(raw) {
   return {
     users: Array.isArray(raw?.users) ? raw.users : [],
     projects: Array.isArray(raw?.projects) ? raw.projects : [],
+    // Agency workspace folders — projects optionally hang under a client.
+    clients: Array.isArray(raw?.clients) ? raw.clients : [],
     // Stripe event ids already applied, newest last. Used for replay protection.
     stripeEvents: Array.isArray(raw?.stripeEvents) ? raw.stripeEvents : [],
   };
@@ -49,6 +52,7 @@ function normalizeProject(raw) {
     presence: raw?.presence && typeof raw.presence === 'object' ? raw.presence : {},
     cursorRuns: Array.isArray(raw?.cursorRuns) ? raw.cursorRuns : [],
     pageApprovals: Array.isArray(raw?.pageApprovals) ? raw.pageApprovals : [],
+    activityEvents: Array.isArray(raw?.activityEvents) ? raw.activityEvents : [],
   };
 }
 
@@ -321,6 +325,21 @@ export function findProject(core, projectId) {
   return core.projects.find((p) => p.id === projectId) || null;
 }
 
+export function findClient(core, clientId) {
+  return (core.clients || []).find((c) => c.id === clientId) || null;
+}
+
+export function publicClient(client) {
+  return {
+    id: client.id,
+    name: client.name,
+    color: client.color || null,
+    // Presence only — never return the raw webhook URL to non-owners via lists.
+    hasSlack: Boolean(client.slackWebhookUrl),
+    createdAt: client.createdAt,
+  };
+}
+
 export function isMember(project, userId) {
   if (!project || !userId) return false;
   if (project.ownerId === userId) return true;
@@ -354,6 +373,9 @@ export function publicProject(project, users = []) {
     memberCount: 1 + (project.memberIds || []).filter((id) => id !== project.ownerId).length,
     // Share links are owner-only; they are returned by /api/invites, not here.
     linkAccess: project.linkAccess !== false,
+    clientId: project.clientId || null,
+    // Presence only — raw webhook stays owner-only via settings payloads.
+    hasSlack: Boolean(project.slackWebhookUrl),
     createdAt: project.createdAt,
     status: project.status || 'ready',
   };

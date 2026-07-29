@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Integrations — Codelii Review</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#002B2B">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/auth-guard.js"></script>
+<script src="/js/icons.js"></script>
+</head>
+<body class="app-body">
+<header class="site-nav app-nav">
+  <div class="nav-inner">
+    <div class="nav-left">
+      <a class="brand" href="/dashboard.html">Codelii<span> Review</span></a>
+      <nav class="app-links" aria-label="App">
+        <a href="/dashboard.html">Projects</a>
+        <a href="/integrations.html" aria-current="page">Integrations</a>
+      </nav>
+    </div>
+    <div class="dash-user" id="user-chip"></div>
+  </div>
+</header>
+
+<main class="dash-wrap">
+  <div class="dash-header">
+    <div>
+      <h1>Integrations</h1>
+      <p class="sub" id="page-sub">Connect the tools your agency already uses. More coming soon.</p>
+    </div>
+  </div>
+
+  <div class="flash" id="flash" hidden></div>
+
+  <div class="integration-grid" id="integration-grid">
+    <article class="integration-card" id="card-slack">
+      <div class="integration-card-top">
+        <div class="integration-logo slack" aria-hidden="true">
+          <svg width="28" height="28" viewBox="0 0 127 127" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M27.2 80c0 7.3-5.9 13.2-13.2 13.2C6.7 93.2.8 87.3.8 80c0-7.3 5.9-13.2 13.2-13.2h13.2V80zm6.6 0c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V80z" fill="#E01E5A"/>
+            <path d="M47 27.2c-7.3 0-13.2-5.9-13.2-13.2C33.8 6.7 39.7.8 47 .8c7.3 0 13.2 5.9 13.2 13.2v13.2H47zm0 6.6c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H14c-7.3 0-13.2-5.9-13.2-13.2C.8 39.7 6.7 33.8 14 33.8H47z" fill="#36C5F0"/>
+            <path d="M99.8 47c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H99.8V47zm-6.6 0c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V14c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33z" fill="#2EB67D"/>
+            <path d="M80 99.8c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V99.8H80zm0-6.6c-7.3 0-13.2-5.9-13.2-13.2 0-7.3 5.9-13.2 13.2-13.2h33c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H80z" fill="#ECB22E"/>
+          </svg>
+        </div>
+        <div class="integration-meta">
+          <h2>Slack</h2>
+          <p>Get review comments, assignments, and page approvals in a Slack channel.</p>
+        </div>
+        <span class="integration-status" id="slack-status">Checking…</span>
+      </div>
+      <div class="integration-details" id="slack-details" hidden></div>
+      <div class="integration-actions" id="slack-actions">
+        <button class="btn btn-accent" type="button" id="slack-connect">
+          <span data-label>Connect Slack</span>
+        </button>
+      </div>
+    </article>
+
+    <article class="integration-card is-soon" id="card-github">
+      <div class="integration-card-top">
+        <div class="integration-logo" aria-hidden="true">
+          <span data-icon="github" data-icon-size="26"></span>
+        </div>
+        <div class="integration-meta">
+          <h2>GitHub</h2>
+          <p>Sync comments to issues and keep Fix with Cursor linked to your repos.</p>
+        </div>
+        <span class="integration-status soon">Coming soon</span>
+      </div>
+      <div class="integration-actions">
+        <button class="btn" type="button" disabled><span data-label>Coming soon</span></button>
+      </div>
+    </article>
+  </div>
+</main>
+
+<script>
+(function () {
+  if (!window.ReviewAuth?.isLoggedIn()) return;
+
+  document.querySelectorAll('[data-icon]').forEach((node) => {
+    node.insertAdjacentHTML('afterbegin', Icons.svg(node.dataset.icon, Number(node.dataset.iconSize) || 18));
+  });
+
+  const user = ReviewAuth.getUser();
+  if (user?.guest) {
+    location.href = '/dashboard.html';
+    return;
+  }
+
+  function initials(n) {
+    return String(n || '?').split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  }
+
+  (function renderUserChip() {
+    const chip = document.getElementById('user-chip');
+    const who = document.createElement('div');
+    who.className = 'user-chip';
+    const avatar = document.createElement('div');
+    avatar.className = 'avatar';
+    avatar.textContent = initials(user.name);
+    const text = document.createElement('div');
+    text.className = 'who';
+    const name = document.createElement('strong');
+    name.textContent = user.name;
+    const email = document.createElement('span');
+    email.textContent = user.email || '';
+    text.append(name, email);
+    who.append(avatar, text);
+
+    const out = document.createElement('button');
+    out.type = 'button';
+    out.className = 'btn btn-icon tip tip-below';
+    out.dataset.tip = 'Sign out';
+    out.setAttribute('aria-label', 'Sign out');
+    out.innerHTML = Icons.svg('signOut', 17);
+    out.onclick = () => ReviewAuth.logout();
+
+    chip.append(who, out);
+  })();
+
+  function setLabel(btn, text) {
+    const el = btn.querySelector('[data-label]');
+    if (el) el.textContent = text;
+    else btn.textContent = text;
+  }
+
+  function showFlash(kind, message) {
+    const flash = document.getElementById('flash');
+    flash.hidden = false;
+    flash.className = `flash ${kind}`;
+    flash.textContent = message;
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+    });
+  }
+
+  async function startSlackConnect(btn) {
+    if (btn) {
+      btn.disabled = true;
+      setLabel(btn, 'Opening Slack…');
+    }
+    try {
+      const res = await fetch('/api/integrations', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'connect', provider: 'slack' }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.url) throw new Error(data.error || 'Could not start Slack connect');
+      window.location.href = data.url;
+    } catch (err) {
+      showFlash('err', err.message || 'Could not start Slack connect');
+      if (btn) {
+        btn.disabled = false;
+        setLabel(btn, btn.dataset.defaultLabel || 'Connect Slack');
+      }
+    }
+  }
+
+  function paintSlack(slack) {
+    const status = document.getElementById('slack-status');
+    const details = document.getElementById('slack-details');
+    const actions = document.getElementById('slack-actions');
+    const card = document.getElementById('card-slack');
+    actions.innerHTML = '';
+    details.hidden = true;
+    details.textContent = '';
+
+    if (!slack?.available) {
+      status.textContent = 'Not configured';
+      status.className = 'integration-status warn';
+      card.classList.remove('is-connected');
+      const note = document.createElement('p');
+      note.className = 'integration-hint';
+      note.textContent = 'Ask your admin to add SLACK_CLIENT_ID and SLACK_CLIENT_SECRET, then you can connect in one click.';
+      actions.appendChild(note);
+      return;
+    }
+
+    if (slack.connected) {
+      status.textContent = 'Connected';
+      status.className = 'integration-status on';
+      card.classList.add('is-connected');
+      details.hidden = false;
+      const bits = [];
+      if (slack.channel) bits.push(`Posting to ${slack.channel}`);
+      if (slack.teamName) bits.push(slack.teamName);
+      if (slack.connectedAt) bits.push(`since ${formatDate(slack.connectedAt)}`);
+      details.textContent = bits.join(' · ') || 'Slack workspace connected.';
+
+      const testBtn = document.createElement('button');
+      testBtn.type = 'button';
+      testBtn.className = 'btn';
+      testBtn.innerHTML = '<span data-label>Send test</span>';
+      testBtn.onclick = async () => {
+        testBtn.disabled = true;
+        setLabel(testBtn, 'Sending…');
+        try {
+          const res = await fetch('/api/integrations', {
+            method: 'POST',
+            headers: ReviewAuth.headers(),
+            body: JSON.stringify({ action: 'test', provider: 'slack' }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'Test failed');
+          showFlash('ok', 'Test message sent to Slack.');
+        } catch (err) {
+          showFlash('err', err.message || 'Test failed');
+        } finally {
+          testBtn.disabled = false;
+          setLabel(testBtn, 'Send test');
+        }
+      };
+
+      const disconnect = document.createElement('button');
+      disconnect.type = 'button';
+      disconnect.className = 'btn';
+      disconnect.innerHTML = '<span data-label>Disconnect</span>';
+      disconnect.onclick = async () => {
+        if (!confirm('Disconnect Slack? You will stop receiving review notifications there.')) return;
+        disconnect.disabled = true;
+        const res = await fetch('/api/integrations?provider=slack', {
+          method: 'DELETE',
+          headers: ReviewAuth.headers(),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showFlash('err', data.error || 'Could not disconnect');
+          disconnect.disabled = false;
+          return;
+        }
+        showFlash('ok', 'Slack disconnected.');
+        await load();
+      };
+
+      const reconnect = document.createElement('button');
+      reconnect.type = 'button';
+      reconnect.className = 'btn btn-accent';
+      reconnect.dataset.defaultLabel = 'Change channel';
+      reconnect.innerHTML = '<span data-label>Change channel</span>';
+      reconnect.onclick = () => startSlackConnect(reconnect);
+
+      actions.append(testBtn, reconnect, disconnect);
+      return;
+    }
+
+    status.textContent = 'Not connected';
+    status.className = 'integration-status';
+    card.classList.remove('is-connected');
+
+    const connect = document.createElement('button');
+    connect.type = 'button';
+    connect.className = 'btn btn-accent slack-connect-btn';
+    connect.dataset.defaultLabel = 'Connect Slack';
+    connect.innerHTML = '<span data-label>Connect Slack</span>';
+    connect.onclick = () => startSlackConnect(connect);
+    actions.appendChild(connect);
+
+    const hint = document.createElement('p');
+    hint.className = 'integration-hint';
+    hint.textContent = 'One click — pick a channel in Slack, and Codelii will post review updates there.';
+    actions.appendChild(hint);
+  }
+
+  async function load() {
+    const res = await fetch('/api/integrations', { headers: ReviewAuth.headers() });
+    if (res.status === 401) {
+      ReviewAuth.clear();
+      location.href = '/login.html?redirect=/integrations.html';
+      return;
+    }
+    const data = await res.json();
+    paintSlack(data.integrations?.slack);
+  }
+
+  (function handleReturn() {
+    const params = new URLSearchParams(location.search);
+    const slack = params.get('slack');
+    if (!slack) return;
+    const reason = params.get('reason') || '';
+    const messages = {
+      connected: ['ok', 'Slack connected. You’ll get review notifications in the channel you picked.'],
+      denied: ['err', 'Slack connection was cancelled.'],
+      not_configured: ['err', 'Slack OAuth is not configured on this server yet.'],
+      forbidden: ['err', 'Your account cannot connect integrations.'],
+      invalid_state: ['err', 'That Slack link expired. Try Connect again.'],
+      error: ['err', reason ? `Could not connect Slack: ${reason}` : 'Could not connect Slack. Try again.'],
+    };
+    const msg = messages[slack];
+    if (msg) showFlash(msg[0], msg[1]);
+    history.replaceState({}, '', '/integrations.html');
+  })();
+
+  load();
+})();
+</script>
+</body>
+</html>

@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard — Codelii Review</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#002B2B">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,7 +19,13 @@
 <body class="app-body">
 <header class="site-nav app-nav">
   <div class="nav-inner">
-    <a class="brand" href="/dashboard.html">Codelii<span> Review</span></a>
+    <div class="nav-left">
+      <a class="brand" href="/dashboard.html">Codelii<span> Review</span></a>
+      <nav class="app-links" aria-label="App">
+        <a href="/dashboard.html" aria-current="page">Projects</a>
+        <a href="/integrations.html" id="nav-integrations">Integrations</a>
+      </nav>
+    </div>
     <div class="dash-user" id="user-chip"></div>
   </div>
 </header>
@@ -36,6 +47,9 @@
         <span data-icon="search" data-icon-size="16"></span>
         <input id="project-search" type="search" placeholder="Search projects" aria-label="Search projects" autocomplete="off">
       </div>
+      <button class="btn" id="btn-new-client" data-icon="folder" data-icon-size="16" type="button">
+        <span data-label>New client</span>
+      </button>
       <button class="btn btn-accent" id="btn-new" data-icon="plus" data-icon-size="16">
         <span data-label>New project</span>
       </button>
@@ -48,7 +62,7 @@
       <span class="count" id="owned-count" hidden></span>
       <span class="rule"></span>
     </div>
-    <div class="project-grid" id="owned-grid"></div>
+    <div id="owned-groups"></div>
     <div class="empty" id="owned-empty" hidden>
       <div class="empty-glyph" data-icon="folder" data-icon-size="22"></div>
       <h3>No projects yet</h3>
@@ -137,6 +151,13 @@
         <label for="proj-source">URL or GitHub repo</label>
         <input id="proj-source" placeholder="https://example.com or github.com/owner/repo" required>
       </div>
+      <div class="field">
+        <label for="proj-client">Client <span class="field-optional">(optional)</span></label>
+        <select id="proj-client">
+          <option value="">Ungrouped</option>
+        </select>
+        <p class="field-hint">Group this project under a client so the dashboard stays tidy.</p>
+      </div>
       <div class="field check-field">
         <label class="check-label">
           <input type="checkbox" id="proj-has-source">
@@ -171,6 +192,12 @@
         <label for="settings-name">Name</label>
         <input id="settings-name">
       </div>
+      <div class="field">
+        <label for="settings-client">Client</label>
+        <select id="settings-client">
+          <option value="">Ungrouped</option>
+        </select>
+      </div>
       <div class="field check-field">
         <label class="check-label">
           <input type="checkbox" id="settings-has-source">
@@ -178,6 +205,13 @@
         </label>
         <p class="field-hint">Turn this on for custom-coded sites or when the repo is available so comments can generate Cursor prompts / Fix runs.</p>
       </div>
+
+      <span class="modal-section-label">Slack</span>
+      <p class="section-hint">
+        Notifications use your connected Slack workspace.
+        <a href="/integrations.html">Manage in Integrations</a>
+        — connect once and get comments, assignments, and approvals in the channel you pick.
+      </p>
 
       <span class="modal-section-label">Cursor agent</span>
       <div class="field">
@@ -205,6 +239,37 @@
     <div class="modal-actions">
       <button class="btn" type="button" data-close="modal-settings">Cancel</button>
       <button class="btn btn-accent" type="button" id="settings-save"><span data-label>Save changes</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Client modal -->
+<div class="modal-backdrop" id="modal-client">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="client-title">
+    <div class="modal-head">
+      <div class="modal-glyph" data-icon="folder" data-icon-size="20"></div>
+      <div class="titles">
+        <h2 id="client-title">New client</h2>
+        <p class="sub" id="client-sub">Group projects under a client. Optional Slack webhook for that client’s channel.</p>
+      </div>
+      <button class="btn btn-icon" data-close="modal-client" data-icon="close" data-icon-size="16" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      <div class="error-box" id="client-error"></div>
+      <div class="field">
+        <label for="client-name">Client name</label>
+        <input id="client-name" placeholder="Acme Co" maxlength="80">
+      </div>
+      <p class="section-hint">
+        Want Slack alerts for this client’s projects?
+        <a href="/integrations.html">Connect Slack in Integrations</a> — one click, then every owned project notifies that channel.
+      </p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" type="button" id="client-delete" hidden><span data-label>Delete client</span></button>
+      <span class="modal-actions-spacer"></span>
+      <button class="btn" type="button" data-close="modal-client">Cancel</button>
+      <button class="btn btn-accent" type="button" id="client-save"><span data-label>Save client</span></button>
     </div>
   </div>
 </div>
@@ -276,7 +341,8 @@
   const isGuest = user?.guest === true;
   let inviteProjectId = null;
   let settingsProjectId = null;
-  let projects = { owned: [], invited: [] };
+  let editingClientId = null;
+  let projects = { owned: [], invited: [], clients: [] };
 
   // Mirrors /api/billing. Advisory only — the server re-checks entitlement on
   // every project create, so nothing here is a security boundary.
@@ -585,11 +651,29 @@
   }
 
   /* --- project cards --- */
+  function fillClientSelect(selectEl, selectedId) {
+    if (!selectEl) return;
+    const current = selectedId || '';
+    selectEl.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = 'Ungrouped';
+    selectEl.appendChild(none);
+    (projects.clients || []).forEach((c) => {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.name;
+      if (c.id === current) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+    if (current && !selectEl.value) selectEl.value = '';
+  }
+
   function card(project, owned) {
     const isGithub = project.type === 'github';
     const el = document.createElement('article');
     el.className = 'project-card';
-    el.dataset.search = `${project.name || ''} ${project.source || ''}`.toLowerCase();
+    el.dataset.search = `${project.name || ''} ${project.source || ''} ${project.clientName || ''}`.toLowerCase();
 
     const glyph = document.createElement('div');
     glyph.className = `card-glyph${isGithub ? ' github' : ''}`;
@@ -619,11 +703,17 @@
     facts.className = 'card-facts';
     facts.appendChild(fact('users', plural(project.memberCount || 1, 'member')));
     if (!owned && project.ownerName) facts.appendChild(fact('user', project.ownerName));
+    if (owned && project.clientName) {
+      facts.appendChild(fact('folder', project.clientName, 'on'));
+    }
     facts.appendChild(
       project.hasSource
         ? fact('code', 'Source linked', 'on')
         : fact('dashed', 'No source', 'off'),
     );
+    if (owned && projects.slackConnected) {
+      facts.appendChild(fact('mail', 'Slack', 'on'));
+    }
     if (project.status && project.status !== 'ready') {
       facts.appendChild(fact('dashed', 'Importing…', 'warn'));
     }
@@ -653,25 +743,99 @@
     return el;
   }
 
+  function clientGroup(client, list) {
+    const wrap = document.createElement('div');
+    wrap.className = 'client-group';
+    wrap.dataset.clientId = client ? client.id : '';
+
+    const head = document.createElement('div');
+    head.className = 'client-group-head';
+
+    const swatch = document.createElement('span');
+    swatch.className = 'client-swatch';
+    if (client?.color) swatch.style.background = client.color;
+
+    const title = document.createElement('h3');
+    title.textContent = client ? client.name : 'Ungrouped';
+
+    const count = document.createElement('span');
+    count.className = 'count';
+    count.textContent = String(list.length);
+
+    const rule = document.createElement('span');
+    rule.className = 'rule';
+
+    head.append(swatch, title, count);
+
+    if (client) {
+      const edit = iconButton('settings', 'Edit client', () => openClient(client));
+      edit.classList.add('client-edit');
+      head.appendChild(edit);
+      if (projects.slackConnected) {
+        const slack = document.createElement('span');
+        slack.className = 'client-slack-pill';
+        slack.title = 'Slack notifications on';
+        slack.innerHTML = Icons.svg('mail', 12) + '<span>Slack</span>';
+        head.appendChild(slack);
+      }
+    }
+
+    head.appendChild(rule);
+
+    const grid = document.createElement('div');
+    grid.className = 'project-grid';
+    list.forEach((p) => grid.appendChild(card(p, true)));
+
+    wrap.append(head, grid);
+    return wrap;
+  }
+
   function showSkeletons() {
-    const grid = document.getElementById('owned-grid');
-    grid.innerHTML = '';
+    const host = document.getElementById('owned-groups');
+    host.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'project-grid';
     for (let i = 0; i < 3; i += 1) {
       const sk = document.createElement('div');
       sk.className = 'skeleton-card';
       grid.appendChild(sk);
     }
+    host.appendChild(grid);
   }
 
   function render() {
     const owned = projects.owned || [];
     const invited = projects.invited || [];
+    const clients = projects.clients || [];
 
-    const ownedGrid = document.getElementById('owned-grid');
+    const ownedHost = document.getElementById('owned-groups');
     const invitedGrid = document.getElementById('invited-grid');
-    ownedGrid.innerHTML = '';
+    ownedHost.innerHTML = '';
     invitedGrid.innerHTML = '';
-    owned.forEach((p) => ownedGrid.appendChild(card(p, true)));
+
+    const byClient = new Map();
+    clients.forEach((c) => byClient.set(c.id, []));
+    const ungrouped = [];
+    owned.forEach((p) => {
+      if (p.clientId && byClient.has(p.clientId)) byClient.get(p.clientId).push(p);
+      else ungrouped.push(p);
+    });
+
+    if (clients.length) {
+      clients.forEach((c) => {
+        const list = byClient.get(c.id) || [];
+        // Show empty clients too so agencies can set Slack before adding projects.
+        ownedHost.appendChild(clientGroup(c, list));
+      });
+      if (ungrouped.length) ownedHost.appendChild(clientGroup(null, ungrouped));
+    } else if (owned.length) {
+      // Flat grid until the first client is created.
+      const grid = document.createElement('div');
+      grid.className = 'project-grid';
+      owned.forEach((p) => grid.appendChild(card(p, true)));
+      ownedHost.appendChild(grid);
+    }
+
     invited.forEach((p) => invitedGrid.appendChild(card(p, false)));
 
     [['owned-count', owned.length], ['invited-count', invited.length]].forEach(([id, n]) => {
@@ -680,10 +844,13 @@
       el.hidden = false;
     });
     document.getElementById('section-invited').hidden = invited.length === 0;
+    const clientBit = clients.length ? ` · ${plural(clients.length, 'client')}` : '';
     document.getElementById('dash-sub').textContent = owned.length || invited.length
-      ? `${plural(owned.length, 'project')}${invited.length ? ` · ${invited.length} shared with you` : ''}`
-      : 'Create a project to start collecting feedback on a live site.';
+      ? `${plural(owned.length, 'project')}${clientBit}${invited.length ? ` · ${invited.length} shared with you` : ''}`
+      : 'Create a client, then add projects — or start with a single project.';
 
+    fillClientSelect(document.getElementById('proj-client'));
+    fillClientSelect(document.getElementById('settings-client'));
     applyFilter();
   }
 
@@ -696,14 +863,22 @@
       if (match) visible += 1;
     });
 
+    document.querySelectorAll('.client-group').forEach((group) => {
+      const any = group.querySelector('.project-card:not([hidden])');
+      const isEmptyClient = !group.querySelector('.project-card');
+      group.hidden = Boolean(term) ? !any : false;
+      // Keep empty clients visible when not searching so Slack/settings remain reachable.
+      if (!term && isEmptyClient) group.hidden = false;
+    });
+
     const owned = projects.owned || [];
     const invited = projects.invited || [];
     const searching = Boolean(term);
 
-    document.getElementById('owned-empty').hidden = searching || owned.length > 0;
+    document.getElementById('owned-empty').hidden = searching || owned.length > 0 || (projects.clients || []).length > 0;
     document.getElementById('search-empty').hidden = !searching || visible > 0;
     document.getElementById('section-owned').hidden =
-      isGuest || (searching && !document.querySelector('#owned-grid .project-card:not([hidden])'));
+      isGuest || (searching && !document.querySelector('#owned-groups .project-card:not([hidden])'));
     document.getElementById('section-invited').hidden = invited.length === 0
       || (searching && !document.querySelector('#invited-grid .project-card:not([hidden])'));
   }
@@ -716,6 +891,7 @@
       return;
     }
     projects = await res.json();
+    if (!Array.isArray(projects.clients)) projects.clients = [];
     render();
   }
 
@@ -733,7 +909,7 @@
     btn.onclick = () => closeModal(btn.dataset.close);
   });
 
-  ['modal-new', 'modal-invite', 'modal-settings', 'modal-trial'].forEach((id) => {
+  ['modal-new', 'modal-invite', 'modal-settings', 'modal-trial', 'modal-client'].forEach((id) => {
     document.getElementById(id).addEventListener('click', (e) => {
       if (e.target.id === id) closeModal(id);
     });
@@ -756,13 +932,19 @@
     document.getElementById('proj-name').value = '';
     document.getElementById('proj-source').value = '';
     document.getElementById('proj-has-source').checked = false;
+    fillClientSelect(document.getElementById('proj-client'));
     openModal('modal-new');
   }
 
   document.getElementById('btn-new').onclick = openNew;
   document.getElementById('empty-new').onclick = openNew;
 
-  if (isGuest) document.getElementById('btn-new').hidden = true;
+  if (isGuest) {
+    document.getElementById('btn-new').hidden = true;
+    document.getElementById('btn-new-client').hidden = true;
+    const integ = document.getElementById('nav-integrations');
+    if (integ) integ.hidden = true;
+  }
   document.getElementById('project-search').addEventListener('input', applyFilter);
 
   document.getElementById('proj-source').addEventListener('input', (e) => {
@@ -785,6 +967,7 @@
           name: document.getElementById('proj-name').value.trim(),
           source: document.getElementById('proj-source').value.trim(),
           hasSource: document.getElementById('proj-has-source').checked,
+          clientId: document.getElementById('proj-client').value || null,
         }),
       });
       const data = await res.json();
@@ -816,6 +999,7 @@
     document.getElementById('settings-error').classList.remove('show');
     document.getElementById('settings-sub').textContent = `Settings for “${project.name}”.`;
     document.getElementById('settings-name').value = project.name || '';
+    fillClientSelect(document.getElementById('settings-client'), project.clientId || '');
     document.getElementById('settings-has-source').checked = Boolean(project.hasSource);
     document.getElementById('settings-repo-url').value = project.repoUrl || (project.type === 'github' ? project.source : '') || '';
     document.getElementById('settings-repo-ref').value = project.repoRef || 'main';
@@ -837,6 +1021,7 @@
         body: JSON.stringify({
           id: settingsProjectId,
           name: document.getElementById('settings-name').value.trim(),
+          clientId: document.getElementById('settings-client').value || null,
           hasSource: document.getElementById('settings-has-source').checked,
           repoUrl: document.getElementById('settings-repo-url').value.trim(),
           repoRef: document.getElementById('settings-repo-ref').value.trim() || 'main',
@@ -855,6 +1040,69 @@
       btn.disabled = false;
       setLabel(btn, 'Save changes');
     }
+  };
+
+  /* --- clients --- */
+  function openClient(client) {
+    editingClientId = client?.id || null;
+    document.getElementById('client-error').classList.remove('show');
+    document.getElementById('client-title').textContent = client ? 'Edit client' : 'New client';
+    document.getElementById('client-sub').textContent = client
+      ? `Projects under “${client.name}”.`
+      : 'Group projects under a client. Optional Slack webhook for that client’s channel.';
+    document.getElementById('client-name').value = client?.name || '';
+    document.getElementById('client-delete').hidden = !client;
+    openModal('modal-client');
+  }
+
+  document.getElementById('btn-new-client').onclick = () => openClient(null);
+
+  document.getElementById('client-save').onclick = async () => {
+    const err = document.getElementById('client-error');
+    err.classList.remove('show');
+    const btn = document.getElementById('client-save');
+    const name = document.getElementById('client-name').value.trim();
+    if (!name) {
+      err.textContent = 'Client name is required';
+      err.classList.add('show');
+      return;
+    }
+    btn.disabled = true;
+    setLabel(btn, 'Saving…');
+    try {
+      const payload = { name };
+      const res = await fetch('/api/clients', {
+        method: editingClientId ? 'PATCH' : 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify(editingClientId ? { id: editingClientId, ...payload } : payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not save client');
+      closeModal('modal-client');
+      await load();
+    } catch (e) {
+      err.textContent = e.message;
+      err.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      setLabel(btn, 'Save client');
+    }
+  };
+
+  document.getElementById('client-delete').onclick = async () => {
+    if (!editingClientId) return;
+    if (!confirm('Delete this client? Projects stay — they just become ungrouped.')) return;
+    const res = await fetch(`/api/clients?id=${encodeURIComponent(editingClientId)}`, {
+      method: 'DELETE',
+      headers: ReviewAuth.headers(),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error || 'Delete failed');
+      return;
+    }
+    closeModal('modal-client');
+    await load();
   };
 
   async function deleteProject(project) {
