@@ -1,6 +1,6 @@
 import { getCore, findProject, isMember } from './lib/store.js';
 import { getUser } from './lib/auth.js';
-import { rewriteHtml, rewriteCss, sameSite } from './lib/inject.js';
+import { rewriteHtml, rewriteCss, rewriteJs, sameSite } from './lib/inject.js';
 
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
@@ -126,6 +126,24 @@ export async function GET(request) {
       status: upstream.status,
       headers: {
         'Content-Type': 'text/css; charset=utf-8',
+        'Cache-Control': 'public, max-age=300',
+      },
+    });
+  }
+
+  // Next/Vite chunk loaders hardcode "/_next/" — rewrite so hydration + canvas/motion run.
+  const looksLikeJs =
+    contentType.includes('javascript')
+    || contentType.includes('ecmascript')
+    || /\.m?js$/i.test(path || '');
+  if (looksLikeJs) {
+    const js = rewriteJs(buf.toString('utf8'), project);
+    return new Response(js, {
+      status: upstream.status,
+      headers: {
+        'Content-Type': contentType.includes('javascript') || contentType.includes('ecmascript')
+          ? contentType
+          : 'application/javascript; charset=utf-8',
         'Cache-Control': 'public, max-age=300',
       },
     });

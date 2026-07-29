@@ -5,6 +5,77 @@ import { canUseCursorTools } from './permissions.js';
 import { getCore } from './store.js';
 import { connectedPmProviders } from './pm.js';
 
+function viewPrefix(project) {
+  return project.type === 'github' ? `/s/${project.id}` : `/p/${project.id}`;
+}
+
+/**
+ * Runs before site JS. Root-absolute fetches/chunk loads (esp. Next `/_next/`)
+ * would otherwise hit the review host and 404 — leaving canvas/motion empty.
+ */
+export function proxyPathBootstrap(prefix) {
+  const P = JSON.stringify(String(prefix || '').replace(/\/+$/, ''));
+  return `<script data-codelii-path-bootstrap>(function(){
+var PREFIX=${P};
+if(!PREFIX)return;
+function rewrite(url){
+  if(url==null)return url;
+  if(typeof Request!=="undefined"&&typeof url==="object"&&url instanceof Request){
+    var nr=rewrite(url.url);
+    return nr===url.url?url:new Request(nr,url);
+  }
+  if(typeof URL!=="undefined"&&typeof url==="object"&&url instanceof URL){
+    var nu=rewrite(url.href);
+    return nu===url.href?url:new URL(nu);
+  }
+  if(typeof url!=="string")return url;
+  if(!url||url.charAt(0)==="#"||/^(data:|blob:|mailto:|tel:|javascript:)/i.test(url))return url;
+  try{
+    var abs=new URL(url,location.href);
+    if(abs.origin!==location.origin)return url;
+    var path=abs.pathname;
+    if(path===PREFIX||path.indexOf(PREFIX+"/")===0)return url;
+    if(/^\\/(api|css|js)(\\/|$)/.test(path))return url;
+    if(/^\\/(login|dashboard|integrations|join|favicon\\.ico|apple-touch|site\\.webmanifest)/.test(path))return url;
+    return PREFIX+path+abs.search+abs.hash;
+  }catch(e){return url;}
+}
+var _fetch=window.fetch;
+window.fetch=function(input,init){return _fetch.call(this,rewrite(input),init);};
+var xhrOpen=XMLHttpRequest.prototype.open;
+XMLHttpRequest.prototype.open=function(method,url){
+  arguments[1]=rewrite(String(url));
+  return xhrOpen.apply(this,arguments);
+};
+function patch(proto,prop){
+  var d=Object.getOwnPropertyDescriptor(proto,prop);
+  if(!d||!d.set)return;
+  Object.defineProperty(proto,prop,{
+    configurable:true,
+    enumerable:!!d.enumerable,
+    get:function(){return d.get.call(this);},
+    set:function(v){d.set.call(this,rewrite(String(v)));}
+  });
+}
+patch(HTMLScriptElement.prototype,"src");
+patch(HTMLImageElement.prototype,"src");
+patch(HTMLLinkElement.prototype,"href");
+if(typeof HTMLSourceElement!=="undefined")patch(HTMLSourceElement.prototype,"src");
+if(typeof HTMLIFrameElement!=="undefined")patch(HTMLIFrameElement.prototype,"src");
+if(typeof Worker!=="undefined"){
+  var OrigWorker=Worker;
+  window.Worker=function(scriptURL,options){return new OrigWorker(rewrite(String(scriptURL)),options);};
+  window.Worker.prototype=OrigWorker.prototype;
+}
+window.addEventListener("load",function(){
+  try{
+    window.dispatchEvent(new Event("resize"));
+    window.dispatchEvent(new Event("scroll"));
+  }catch(e){}
+});
+})();</script>`;
+}
+
 export async function injectOverlay(html, project, viewer) {
   const hasSource =
     typeof project.hasSource === 'boolean'
@@ -33,7 +104,7 @@ export async function injectOverlay(html, project, viewer) {
     source: project.source,
     baseUrl: project.baseUrl || null,
     hasSource,
-    viewPrefix: project.type === 'github' ? `/s/${project.id}` : `/p/${project.id}`,
+    viewPrefix: viewPrefix(project),
     pmProviders,
   };
 
@@ -131,6 +202,21 @@ function rewriteUrl(href, projectId, baseOrigin, mode) {
   }
 }
 
+/** Rewrite hardcoded bundler public paths inside JS (Next.js `__webpack_require__.p`). */
+export function rewriteJs(js, project) {
+  const prefix = viewPrefix(project);
+  if (!js || !prefix) return js;
+  let out = js;
+  // "/_next/..." and '/_next/...' and `/_next/...`
+  out = out.replace(/(["'`])\/_next\//g, `$1${prefix}/_next/`);
+  out = out.replace(/(["'`])\/_vercel\//g, `$1${prefix}/_vercel/`);
+  // Escaped form common in bundled strings: \/_next\/
+  const esc = prefix.replace(/\//g, '\\/');
+  out = out.replace(/\\\/_next\//g, `${esc}/_next/`);
+  out = out.replace(/\\\/_vercel\//g, `${esc}/_vercel/`);
+  return out;
+}
+
 export async function rewriteHtml(html, project, viewer) {
   const projectId = project.id;
   const baseOrigin = project.baseUrl || '';
@@ -155,6 +241,13 @@ export async function rewriteHtml(html, project, viewer) {
     return `${attr}="${next}"`;
   });
 
+  // Lazy-load attrs
+  out = out.replace(/\b(data-src|data-href)=["']([^"']+)["']/gi, (match, attr, url) => {
+    const next = rewriteUrl(url, projectId, baseOrigin, mode);
+    if (next === url) return match;
+    return `${attr}="${next}"`;
+  });
+
   // Open external anchor links in a new tab (anchors only — never <link>/<script>)
   if (mode === 'url' && baseOrigin) {
     out = out.replace(/<a\b([^>]*)>/gi, (match, attrs) => {
@@ -168,15 +261,15 @@ export async function rewriteHtml(html, project, viewer) {
     });
   }
 
-  // srcset
-  out = out.replace(/\bsrcset=["']([^"']+)["']/gi, (match, value) => {
+  // srcset + imagesrcset
+  out = out.replace(/\b(srcset|imagesrcset)=["']([^"']+)["']/gi, (match, attr, value) => {
     const parts = value.split(',').map((part) => {
       const trimmed = part.trim();
       const [u, ...rest] = trimmed.split(/\s+/);
       const next = rewriteUrl(u, projectId, baseOrigin, mode);
       return [next, ...rest].join(' ');
     });
-    return `srcset="${parts.join(', ')}"`;
+    return `${attr}="${parts.join(', ')}"`;
   });
 
   // CSS url()
@@ -186,12 +279,12 @@ export async function rewriteHtml(html, project, viewer) {
     return `url(${quote}${next}${quote})`;
   });
 
-  // Set <base> last so it is not rewritten
-  const baseTag = `<base href="${prefix}/">`;
+  // Path bootstrap + <base> first in <head> so chunk loads resolve under /p|/s
+  const headInject = `${proxyPathBootstrap(prefix)}<base href="${prefix}/">`;
   if (/<head[^>]*>/i.test(out)) {
-    out = out.replace(/<head([^>]*)>/i, `<head$1>${baseTag}`);
+    out = out.replace(/<head([^>]*)>/i, `<head$1>${headInject}`);
   } else {
-    out = baseTag + out;
+    out = headInject + out;
   }
 
   return injectOverlay(out, project, viewer);
