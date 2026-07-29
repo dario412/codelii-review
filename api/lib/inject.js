@@ -12,8 +12,11 @@ function viewPrefix(project) {
 /**
  * Runs before site JS. Root-absolute fetches/chunk loads (esp. Next `/_next/`)
  * would otherwise hit the review host and 404 — leaving canvas/motion empty.
- * Also forces scroll-into-view / entrance animations to their end state so
- * clients see the full page in review, not opacity-0 placeholders.
+ *
+ * Scroll-into-view: we only nudge IntersectionObserver + reduced-motion so
+ * components that *set React state* on enter (e.g. roster grid) reveal cleanly.
+ * We intentionally do NOT force every `.opacity-0` visible — hover cards and
+ * tooltip popovers also use that class and must stay hidden until hovered.
  */
 export function proxyPathBootstrap(prefix) {
   const P = JSON.stringify(String(prefix || '').replace(/\/+$/, ''));
@@ -70,9 +73,8 @@ if(typeof Worker!=="undefined"){
   window.Worker.prototype=OrigWorker.prototype;
 }
 
-/* ---- Force scroll / entrance animations to complete in review ---- */
-(function forceReveal(){
-  /* Credible (and many sites) skip IO and show content when reduced-motion is on. */
+/* Scroll-into-view only — do not force hover/popover opacity-0 open */
+(function scrollIntoViewAssist(){
   var _mm=window.matchMedia.bind(window);
   window.matchMedia=function(query){
     var q=String(query||"");
@@ -92,211 +94,48 @@ if(typeof Worker!=="undefined"){
   };
 
   var OrigIO=window.IntersectionObserver;
-  if(OrigIO){
-    window.IntersectionObserver=function(callback,options){
-      function forceEntry(target){
-        var rect=target&&target.getBoundingClientRect?target.getBoundingClientRect():{top:0,left:0,bottom:0,right:0,width:0,height:0,x:0,y:0,toJSON:function(){return{};}};
+  if(!OrigIO)return;
+  window.IntersectionObserver=function(callback,options){
+    function forceEntry(target){
+      var rect=target&&target.getBoundingClientRect?target.getBoundingClientRect():{top:0,left:0,bottom:0,right:0,width:0,height:0,x:0,y:0,toJSON:function(){return{};}};
+      return {
+        time: typeof performance!=="undefined"?performance.now():Date.now(),
+        target: target,
+        isIntersecting: true,
+        intersectionRatio: 1,
+        boundingClientRect: rect,
+        intersectionRect: rect,
+        rootBounds: null,
+        isVisible: true
+      };
+    }
+    var obs=new OrigIO(function(entries,observer){
+      callback((entries||[]).map(function(e){
         return {
-          time: typeof performance!=="undefined"?performance.now():Date.now(),
-          target: target,
+          time: e.time,
+          target: e.target,
           isIntersecting: true,
           intersectionRatio: 1,
-          boundingClientRect: rect,
-          intersectionRect: rect,
-          rootBounds: null,
+          boundingClientRect: e.boundingClientRect,
+          intersectionRect: e.boundingClientRect||e.intersectionRect,
+          rootBounds: e.rootBounds,
           isVisible: true
         };
-      }
-      var obs=new OrigIO(function(entries,observer){
-        var mapped=(entries||[]).map(function(e){
-          return {
-            time: e.time,
-            target: e.target,
-            isIntersecting: true,
-            intersectionRatio: 1,
-            boundingClientRect: e.boundingClientRect,
-            intersectionRect: e.boundingClientRect||e.intersectionRect,
-            rootBounds: e.rootBounds,
-            isVisible: true
-          };
-        });
-        callback(mapped,observer);
-      },options);
-      var _observe=obs.observe.bind(obs);
-      obs.observe=function(target){
-        _observe(target);
-        try{
-          var entry=forceEntry(target);
-          queueMicrotask(function(){ try{ callback([entry],obs); }catch(err){} });
-          setTimeout(function(){ try{ callback([forceEntry(target)],obs); }catch(err){} }, 0);
-        }catch(err){}
-      };
-      return obs;
+      }),observer);
+    },options);
+    var _observe=obs.observe.bind(obs);
+    obs.observe=function(target){
+      _observe(target);
+      try{
+        queueMicrotask(function(){ try{ callback([forceEntry(target)],obs); }catch(err){} });
+      }catch(err){}
     };
-    window.IntersectionObserver.prototype=OrigIO.prototype;
-    try{ Object.setPrototypeOf(window.IntersectionObserver, OrigIO); }catch(e){}
-  }
-
-  function isReviewChrome(el){
-    if(!el||!el.closest)return false;
-    return !!el.closest('#review-toolbar,#review-sidebar,#review-pins-layer,#review-active-bubble,#review-live-toasts,#review-notifications-panel,#review-notifications-wrap,#review-click-shield,#review-screenshot-lightbox,#review-selection-bar,#review-follow-banner,#review-remote-cursor,#review-mention-dropdown,.review-bubble,.review-assign-picker,.review-pm-picker');
-  }
-
-  function finishAnimations(){
-    try{
-      if(!document.getAnimations)return;
-      document.getAnimations({subtree:true}).forEach(function(a){
-        try{ a.finish(); }catch(e){}
-      });
-    }catch(e){}
-  }
-
-  function forceShow(el){
-    if(!el||!el.style||isReviewChrome(el))return;
-    el.style.setProperty("opacity","1","important");
-    el.style.setProperty("transform","none","important");
-    el.style.setProperty("filter","none","important");
-    el.style.setProperty("translate","none","important");
-    el.style.setProperty("visibility","visible","important");
-    try{
-      el.classList.remove("opacity-0","invisible");
-      /* common Tailwind entrance offsets */
-      ["translate-y-4","translate-y-5","translate-y-6","translate-y-8","translate-y-10","translate-y-12","translate-y-16","-translate-y-4","-translate-y-8","-translate-y-10","translate-x-4","-translate-x-4","scale-95","scale-90"].forEach(function(c){
-        el.classList.remove(c);
-      });
-      el.classList.add("opacity-100");
-    }catch(e){}
-  }
-
-  function revealInlineHidden(){
-    var all=document.body?document.body.getElementsByTagName("*"):[];
-    for(var i=0;i<all.length;i++){
-      var el=all[i];
-      if(isReviewChrome(el))continue;
-      var st=el.style;
-      if(!st)continue;
-      var op=st.opacity;
-      if(op!==""&&parseFloat(op)===0) forceShow(el);
-    }
-  }
-
-  function revealComputedHidden(){
-    if(!document.body)return;
-    /* Tailwind opacity-0 cards (Credible roster) + any computed opacity-0 content */
-    var classHits=document.querySelectorAll('.opacity-0,[class*="opacity-0"],.invisible,[class*="translate-y-"]');
-    for(var i=0;i<classHits.length;i++) forceShow(classHits[i]);
-
-    var all=document.body.getElementsByTagName("*");
-    for(var j=0;j<all.length;j++){
-      var el=all[j];
-      if(isReviewChrome(el))continue;
-      var cs=window.getComputedStyle(el);
-      if(!cs||cs.display==="none")continue;
-      if(parseFloat(cs.opacity)!==0)continue;
-      var r=el.getBoundingClientRect();
-      if(r.width<2&&r.height<2)continue;
-      forceShow(el);
-    }
-  }
-
-  var swept=false;
-  function scrollSweep(done){
-    if(swept){ if(done)done(); return; }
-    swept=true;
-    var startY=window.scrollY||0;
-    var max=Math.max(
-      document.body?document.body.scrollHeight:0,
-      document.documentElement?document.documentElement.scrollHeight:0
-    );
-    var view=window.innerHeight||800;
-    var y=0;
-    var step=Math.max(Math.floor(view*0.45),220);
-    function tick(){
-      if(y>max+view){
-        window.scrollTo(0,startY);
-        try{
-          window.dispatchEvent(new Event("scroll"));
-          window.dispatchEvent(new Event("resize"));
-        }catch(e){}
-        if(done)done();
-        return;
-      }
-      window.scrollTo(0,y);
-      try{ window.dispatchEvent(new Event("scroll")); }catch(e){}
-      y+=step;
-      requestAnimationFrame(function(){ requestAnimationFrame(tick); });
-    }
-    tick();
-  }
-
-  function runReveal(withSweep){
-    try{ document.documentElement.classList.add("codelii-review-reveal"); }catch(e){}
-    finishAnimations();
-    revealInlineHidden();
-    revealComputedHidden();
-    try{
-      window.dispatchEvent(new Event("resize"));
-      window.dispatchEvent(new Event("scroll"));
-    }catch(e){}
-    if(withSweep){
-      scrollSweep(function(){
-        finishAnimations();
-        revealInlineHidden();
-        revealComputedHidden();
-      });
-    }
-  }
-
-  function schedule(){
-    runReveal(false);
-    setTimeout(function(){ runReveal(true); }, 300);
-    setTimeout(function(){ runReveal(false); }, 900);
-    setTimeout(function(){ runReveal(false); }, 2000);
-    setTimeout(function(){ runReveal(false); }, 4000);
-  }
-
-  try{ document.documentElement.classList.add("codelii-review-reveal"); }catch(e){}
-
-  if(document.readyState==="loading"){
-    document.addEventListener("DOMContentLoaded",schedule,{once:true});
-  }else{
-    schedule();
-  }
-  window.addEventListener("load",function(){
-    runReveal(true);
-  });
-
-  /* React hydrates later and re-applies opacity-0 — keep clearing it. */
-  try{
-    var moT=null;
-    var mo=new MutationObserver(function(){
-      if(moT)return;
-      moT=setTimeout(function(){ moT=null; revealComputedHidden(); }, 60);
-    });
-    var startMo=function(){
-      if(!document.body)return;
-      mo.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:["class","style"]});
-    };
-    if(document.body) startMo();
-    else document.addEventListener("DOMContentLoaded",startMo,{once:true});
-  }catch(e){}
+    return obs;
+  };
+  window.IntersectionObserver.prototype=OrigIO.prototype;
+  try{ Object.setPrototypeOf(window.IntersectionObserver, OrigIO); }catch(e){}
 })();
-})();</script>
-<style data-codelii-reveal>
-  /* Credible roster cards + Tailwind entrance states — show end state in review */
-  html.codelii-review-reveal .opacity-0,
-  html.codelii-review-reveal [class*="opacity-0"] {
-    opacity: 1 !important;
-    transform: none !important;
-    translate: none !important;
-    filter: none !important;
-    visibility: visible !important;
-  }
-  html.codelii-review-reveal .invisible {
-    visibility: visible !important;
-    opacity: 1 !important;
-  }
-</style>`;
+})();</script>`;
 }
 
 export async function injectOverlay(html, project, viewer) {
