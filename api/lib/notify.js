@@ -1,8 +1,9 @@
 /**
  * Fan-out review events to Slack, Teams, and Discord.
  */
+import { saveCore } from './store.js';
 import { notifySlack, projectReviewUrl } from './slack.js';
-import { resolveTeamsWebhook, postTeams } from './teams.js';
+import { notifyTeamsConnection } from './teams.js';
 import { resolveDiscordWebhook, postDiscord } from './discord.js';
 
 /**
@@ -27,8 +28,17 @@ export function notifyReviewEvent(core, project, {
     projectName: project?.name,
   };
 
-  const teams = resolveTeamsWebhook(core, project);
-  if (teams) postTeams(teams, payload).catch(() => {});
+  notifyTeamsConnection(core, project, payload)
+    .then(async (result) => {
+      if (result?.saved) {
+        try {
+          await saveCore(core);
+        } catch (err) {
+          console.error('[notify] save teams tokens', err.message);
+        }
+      }
+    })
+    .catch(() => {});
 
   const discord = resolveDiscordWebhook(core, project);
   if (discord) postDiscord(discord, payload).catch(() => {});

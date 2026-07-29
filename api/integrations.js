@@ -15,6 +15,12 @@ import {
   normalizeTeamsWebhook,
   publicTeamsStatus,
   postTeams,
+  postTeamsGraph,
+  isTeamsOAuthConfigured,
+  createTeamsOAuthState,
+  buildTeamsAuthorizeUrl,
+  ensureTeamsAccessToken,
+  listTeamsDestinations,
 } from './lib/teams.js';
 import {
   normalizeDiscordWebhook,
@@ -67,10 +73,11 @@ export async function GET(request) {
       },
       teams: {
         available: true,
+        oauth: isTeamsOAuthConfigured(),
         ...publicTeamsStatus(account),
         category: 'notify',
         name: 'Microsoft Teams',
-        blurb: 'Post the same review updates to a Teams channel via incoming webhook.',
+        blurb: 'One-click Microsoft sign-in, then pick a Team channel for review updates.',
       },
       discord: {
         available: true,
@@ -142,16 +149,70 @@ export async function POST(request) {
   }
 
   if (provider === 'teams' && action === 'connect') {
+    // OAuth (preferred) — same pattern as Slack
+    if (!body.webhookUrl && isTeamsOAuthConfigured()) {
+      const state = await createTeamsOAuthState(account.id);
+      return json({ url: buildTeamsAuthorizeUrl(state) });
+    }
+    // Webhook fallback
     let webhookUrl;
     try {
       webhookUrl = normalizeTeamsWebhook(body.webhookUrl);
     } catch (err) {
       return json({ error: err.message }, 400);
     }
-    if (!webhookUrl) return json({ error: 'Webhook URL required' }, 400);
+    if (!webhookUrl) {
+      if (!isTeamsOAuthConfigured()) {
+        return json({
+          error: 'Add TEAMS_CLIENT_ID and TEAMS_CLIENT_SECRET for one-click connect, or paste a webhook URL.',
+        }, 400);
+      }
+      return json({ error: 'Webhook URL required' }, 400);
+    }
     account.teams = {
+      ...(account.teams || {}),
       webhookUrl,
       label: (body.label || '').trim().slice(0, 80) || null,
+      teamId: null,
+      channelId: null,
+      connectedAt: new Date().toISOString(),
+    };
+    await saveCore(core);
+    return json({ ok: true, teams: publicTeamsStatus(account) });
+  }
+
+  if (provider === 'teams' && action === 'list_channels') {
+    if (!account.teams?.accessToken && !account.teams?.refreshToken) {
+      return json({ error: 'Connect Microsoft first' }, 400);
+    }
+    try {
+      const token = await ensureTeamsAccessToken(account);
+      await saveCore(core);
+      const teams = await listTeamsDestinations(token);
+      return json({ teams });
+    } catch (err) {
+      return json({ error: err.message || 'Could not list Teams channels' }, 502);
+    }
+  }
+
+  if (provider === 'teams' && action === 'select_channel') {
+    const teamId = String(body.teamId || '').trim();
+    const channelId = String(body.channelId || '').trim();
+    const teamName = String(body.teamName || '').trim().slice(0, 120) || null;
+    const channelName = String(body.channelName || '').trim().slice(0, 120) || null;
+    if (!teamId || !channelId) {
+      return json({ error: 'teamId and channelId required' }, 400);
+    }
+    if (!account.teams?.accessToken && !account.teams?.refreshToken) {
+      return json({ error: 'Connect Microsoft first' }, 400);
+    }
+    account.teams = {
+      ...account.teams,
+      teamId,
+      teamName,
+      channelId,
+      channelName,
+      webhookUrl: null,
       connectedAt: new Date().toISOString(),
     };
     await saveCore(core);
@@ -159,14 +220,24 @@ export async function POST(request) {
   }
 
   if (provider === 'teams' && action === 'test') {
-    if (!account.teams?.webhookUrl) return json({ error: 'Connect Teams first' }, 400);
-    const ok = await postTeams(account.teams.webhookUrl, {
+    const status = publicTeamsStatus(account);
+    if (!status.connected) {
+      return json({ error: status.pendingChannel ? 'Pick a Teams channel first' : 'Connect Teams first' }, 400);
+    }
+    const payload = {
       title: 'Codelii Review is connected',
-      body: `You'll get notifications here for comments, assignments, and page approvals.\nSent as a test by ${account.name || account.email}`,
+      body: `You'll get notifications here for comments, assignments, and page approvals. Sent as a test by ${account.name || account.email}`,
       projectName: 'Integrations',
-      link: (process.env.SITE_URL || '').replace(/\/+$/, '') + '/integrations.html',
-    });
-    if (!ok) return json({ error: 'Teams rejected the test message. Check the webhook URL.' }, 502);
+      link: `${(process.env.SITE_URL || '').replace(/\/+$/, '')}/integrations.html`,
+    };
+    let ok = false;
+    if (account.teams?.teamId && account.teams?.channelId) {
+      ok = await postTeamsGraph(account, payload);
+      await saveCore(core);
+    } else if (account.teams?.webhookUrl) {
+      ok = await postTeams(account.teams.webhookUrl, payload);
+    }
+    if (!ok) return json({ error: 'Teams rejected the test message. Try reconnecting.' }, 502);
     return json({ ok: true });
   }
 

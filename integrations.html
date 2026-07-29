@@ -194,6 +194,36 @@
   </div>
 </div>
 
+<!-- Teams channel picker (after Microsoft OAuth) -->
+<div class="modal-backdrop" id="modal-teams-channel">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="teams-channel-title">
+    <div class="modal-head">
+      <div class="modal-glyph" data-icon="link" data-icon-size="20"></div>
+      <div class="titles">
+        <h2 id="teams-channel-title">Choose a Teams channel</h2>
+        <p class="sub">Use a normal Team + channel (not Communities). Codelii will post review updates there.</p>
+      </div>
+      <button class="btn btn-icon" data-close="modal-teams-channel" data-icon="close" data-icon-size="16" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      <div class="error-box" id="teams-channel-error"></div>
+      <div class="field">
+        <label for="teams-team">Team</label>
+        <select id="teams-team"></select>
+      </div>
+      <div class="field">
+        <label for="teams-channel">Channel</label>
+        <select id="teams-channel"></select>
+        <p class="field-hint">If the lists are empty, make sure you belong to at least one Microsoft 365 Team with channels.</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" data-close="modal-teams-channel">Cancel</button>
+      <button class="btn btn-accent" type="button" id="teams-channel-save"><span data-label>Save channel</span></button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   if (!window.ReviewAuth?.isLoggedIn()) return;
@@ -594,15 +624,231 @@
   }
 
   function paintTeams(teams) {
-    paintWebhookCard('teams', teams, {
-      connectedLabel: 'Teams webhook connected.',
-      testOk: 'Test message sent to Teams.',
-      disconnectConfirm: 'Disconnect Microsoft Teams?',
-      disconnected: 'Teams disconnected.',
-      connectLabel: 'Connect Teams',
-      hint: 'Opens a dialog to paste your Teams incoming webhook URL.',
-    });
+    const status = document.getElementById('teams-status');
+    const details = document.getElementById('teams-details');
+    const actions = document.getElementById('teams-actions');
+    const card = document.getElementById('card-teams');
+    actions.innerHTML = '';
+    details.hidden = true;
+    details.textContent = '';
+
+    if (teams?.pendingChannel) {
+      status.textContent = 'Pick channel';
+      status.className = 'integration-status warn';
+      card.classList.add('is-connected');
+      details.hidden = false;
+      details.textContent = 'Microsoft signed in — choose a Team channel to finish.';
+      const pick = document.createElement('button');
+      pick.type = 'button';
+      pick.className = 'btn btn-accent';
+      pick.innerHTML = '<span data-label>Choose channel</span>';
+      pick.onclick = () => openTeamsChannelPicker();
+      actions.appendChild(pick);
+      return;
+    }
+
+    if (teams?.connected) {
+      status.textContent = 'Connected';
+      status.className = 'integration-status on';
+      card.classList.add('is-connected');
+      details.hidden = false;
+      const bits = [];
+      if (teams.label) bits.push(teams.label);
+      else if (teams.channelName) bits.push(`#${teams.channelName}`);
+      if (teams.connectedAt) bits.push(`since ${formatDate(teams.connectedAt)}`);
+      details.textContent = bits.join(' · ') || 'Teams connected.';
+
+      const testBtn = document.createElement('button');
+      testBtn.type = 'button';
+      testBtn.className = 'btn';
+      testBtn.innerHTML = '<span data-label>Send test</span>';
+      testBtn.onclick = async () => {
+        testBtn.disabled = true;
+        setLabel(testBtn, 'Sending…');
+        try {
+          const res = await fetch('/api/integrations', {
+            method: 'POST',
+            headers: ReviewAuth.headers(),
+            body: JSON.stringify({ action: 'test', provider: 'teams' }),
+          });
+          const out = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(out.error || 'Test failed');
+          showFlash('ok', 'Test message sent to Teams.');
+        } catch (err) {
+          showFlash('err', err.message || 'Test failed');
+        } finally {
+          testBtn.disabled = false;
+          setLabel(testBtn, 'Send test');
+        }
+      };
+
+      const change = document.createElement('button');
+      change.type = 'button';
+      change.className = 'btn';
+      if (teams.mode === 'webhook') {
+        change.innerHTML = '<span data-label>Change URL</span>';
+        change.onclick = () => openWebhookModal('teams');
+      } else {
+        change.innerHTML = '<span data-label>Change channel</span>';
+        change.onclick = () => openTeamsChannelPicker();
+      }
+
+      const disconnect = document.createElement('button');
+      disconnect.type = 'button';
+      disconnect.className = 'btn';
+      disconnect.innerHTML = '<span data-label>Disconnect</span>';
+      disconnect.onclick = async () => {
+        if (!confirm('Disconnect Microsoft Teams?')) return;
+        const res = await fetch('/api/integrations?provider=teams', {
+          method: 'DELETE',
+          headers: ReviewAuth.headers(),
+        });
+        if (!res.ok) {
+          const out = await res.json().catch(() => ({}));
+          showFlash('err', out.error || 'Could not disconnect');
+          return;
+        }
+        showFlash('ok', 'Teams disconnected.');
+        await load();
+      };
+
+      actions.append(testBtn, change, disconnect);
+      return;
+    }
+
+    status.textContent = 'Not connected';
+    status.className = 'integration-status';
+    card.classList.remove('is-connected');
+
+    if (teams?.oauth) {
+      const connect = document.createElement('button');
+      connect.type = 'button';
+      connect.className = 'btn btn-accent';
+      connect.innerHTML = '<span data-label>Connect Teams</span>';
+      connect.onclick = () => startConnect('teams', connect, 'Connect Teams');
+      actions.appendChild(connect);
+      const alt = document.createElement('button');
+      alt.type = 'button';
+      alt.className = 'btn';
+      alt.innerHTML = '<span data-label>Use webhook instead</span>';
+      alt.onclick = () => openWebhookModal('teams');
+      actions.appendChild(alt);
+      const hint = document.createElement('p');
+      hint.className = 'integration-hint';
+      hint.textContent = 'Sign in with Microsoft, then pick a normal Team channel (not Communities).';
+      actions.appendChild(hint);
+      return;
+    }
+
+    // OAuth not configured on server — webhook-only
+    const connect = document.createElement('button');
+    connect.type = 'button';
+    connect.className = 'btn btn-accent';
+    connect.innerHTML = '<span data-label>Connect Teams</span>';
+    connect.onclick = () => openWebhookModal('teams');
+    actions.appendChild(connect);
+    const hint = document.createElement('p');
+    hint.className = 'integration-hint';
+    hint.textContent = 'Add TEAMS_CLIENT_ID and TEAMS_CLIENT_SECRET for one-click Microsoft sign-in, or paste a channel webhook.';
+    actions.appendChild(hint);
   }
+
+  let teamsCatalog = [];
+
+  async function openTeamsChannelPicker() {
+    const err = document.getElementById('teams-channel-error');
+    err.textContent = '';
+    err.classList.remove('show');
+    const teamSel = document.getElementById('teams-team');
+    const channelSel = document.getElementById('teams-channel');
+    teamSel.innerHTML = '<option value="">Loading…</option>';
+    channelSel.innerHTML = '';
+    openModal('modal-teams-channel');
+
+    try {
+      const res = await fetch('/api/integrations', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'list_channels', provider: 'teams' }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'Could not load teams');
+      teamsCatalog = out.teams || [];
+      teamSel.innerHTML = '';
+      if (!teamsCatalog.length) {
+        teamSel.innerHTML = '<option value="">No teams found</option>';
+        err.textContent = 'No Microsoft 365 Teams found. Create a Team (not a Community), join it, then try again.';
+        err.classList.add('show');
+        return;
+      }
+      teamsCatalog.forEach((t, i) => {
+        const opt = document.createElement('option');
+        opt.value = String(i);
+        opt.textContent = t.name;
+        teamSel.appendChild(opt);
+      });
+      function fillChannels() {
+        const team = teamsCatalog[Number(teamSel.value)] || teamsCatalog[0];
+        channelSel.innerHTML = '';
+        (team?.channels || []).forEach((c) => {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.name;
+          channelSel.appendChild(opt);
+        });
+      }
+      teamSel.onchange = fillChannels;
+      fillChannels();
+    } catch (e) {
+      teamSel.innerHTML = '';
+      err.textContent = e.message || 'Could not load teams';
+      err.classList.add('show');
+    }
+  }
+
+  document.getElementById('teams-channel-save').onclick = async () => {
+    const btn = document.getElementById('teams-channel-save');
+    const err = document.getElementById('teams-channel-error');
+    err.textContent = '';
+    err.classList.remove('show');
+    const teamSel = document.getElementById('teams-team');
+    const channelSel = document.getElementById('teams-channel');
+    const team = teamsCatalog[Number(teamSel.value)];
+    const channelId = channelSel.value;
+    const channel = (team?.channels || []).find((c) => c.id === channelId);
+    if (!team || !channel) {
+      err.textContent = 'Select a team and channel.';
+      err.classList.add('show');
+      return;
+    }
+    btn.disabled = true;
+    setLabel(btn, 'Saving…');
+    try {
+      const res = await fetch('/api/integrations', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({
+          action: 'select_channel',
+          provider: 'teams',
+          teamId: team.id,
+          teamName: team.name,
+          channelId: channel.id,
+          channelName: channel.name,
+        }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'Could not save channel');
+      closeModal('modal-teams-channel');
+      showFlash('ok', `Teams connected to #${channel.name}.`);
+      await load();
+    } catch (e) {
+      err.textContent = e.message || 'Could not save';
+      err.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      setLabel(btn, 'Save channel');
+    }
+  };
 
   function paintDiscord(discord) {
     paintWebhookCard('discord', discord, {
@@ -859,9 +1105,13 @@
     paintPmGrid(data.integrations || {});
   }
 
+  const returnParams = new URLSearchParams(location.search);
+  const shouldPickTeams = returnParams.get('teams') === 'pick';
+
   (function handleReturn() {
-    const params = new URLSearchParams(location.search);
+    const params = returnParams;
     const slack = params.get('slack');
+    const teams = params.get('teams');
     const pm = params.get('pm');
     const reason = params.get('reason') || '';
     const provider = params.get('provider') || '';
@@ -877,6 +1127,18 @@
       const msg = messages[slack];
       if (msg) showFlash(msg[0], msg[1]);
     }
+    if (teams) {
+      const messages = {
+        pick: ['ok', 'Microsoft signed in. Choose a Team channel to finish.'],
+        denied: ['err', 'Microsoft connection was cancelled.'],
+        not_configured: ['err', 'Teams OAuth is not configured on this server yet.'],
+        forbidden: ['err', 'Your account cannot connect integrations.'],
+        invalid_state: ['err', 'That Microsoft link expired. Try Connect again.'],
+        error: ['err', reason ? `Could not connect Teams: ${reason}` : 'Could not connect Teams. Try again.'],
+      };
+      const msg = messages[teams];
+      if (msg) showFlash(msg[0], msg[1]);
+    }
     if (pm) {
       const label = provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : 'PM tool';
       const messages = {
@@ -889,10 +1151,12 @@
       const msg = messages[pm];
       if (msg) showFlash(msg[0], msg[1]);
     }
-    if (slack || pm) history.replaceState({}, '', '/integrations.html');
+    if (slack || teams || pm) history.replaceState({}, '', '/integrations.html');
   })();
 
-  load();
+  load().then(() => {
+    if (shouldPickTeams) openTeamsChannelPicker();
+  });
 })();
 </script>
 </body>
