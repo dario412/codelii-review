@@ -13,15 +13,176 @@ function viewPrefix(project) {
  * Runs before site JS. Root-absolute fetches/chunk loads (esp. Next `/_next/`)
  * would otherwise hit the review host and 404 — leaving canvas/motion empty.
  *
- * Scroll-into-view: we only nudge IntersectionObserver + reduced-motion so
- * components that *set React state* on enter (e.g. roster grid) reveal cleanly.
- * We intentionally do NOT force every `.opacity-0` visible — hover cards and
- * tooltip popovers also use that class and must stay hidden until hovered.
+ * Scroll-into-view: nudge IntersectionObserver + reduced-motion so React
+ * entrance state flips (FadeUp, TopicMix, StatCounter). Also selectively
+ * force entrance opacity/translate only — never hover/popover cards
+ * (absolute + group-hover), which must stay closed until hovered like live.
  */
 export function proxyPathBootstrap(prefix) {
   const P = JSON.stringify(String(prefix || '').replace(/\/+$/, ''));
   return `<script data-codelii-path-bootstrap>(function(){
 var PREFIX=${P};
+window.__CODELII_REVIEW__=true;
+
+/* Reduced-motion + IO first so later site modules see the patches even if rewrite throws */
+(function scrollIntoViewAssist(){
+  try{
+    var _mm=window.matchMedia.bind(window);
+    window.matchMedia=function(query){
+      var q=String(query||"");
+      if(/prefers-reduced-motion/i.test(q)&&/reduce/i.test(q)){
+        try{
+          var real=_mm(q);
+          return new Proxy(real,{
+            get:function(t,p){
+              if(p==="matches")return true;
+              var v=t[p];
+              return typeof v==="function"?v.bind(t):v;
+            }
+          });
+        }catch(e){
+          return {
+            matches:true,
+            media:q,
+            onchange:null,
+            addListener:function(){},
+            removeListener:function(){},
+            addEventListener:function(){},
+            removeEventListener:function(){},
+            dispatchEvent:function(){return false;}
+          };
+        }
+      }
+      return _mm(query);
+    };
+  }catch(e){}
+
+  try{
+    var OrigIO=window.IntersectionObserver;
+    if(OrigIO){
+      window.IntersectionObserver=function(callback,options){
+        function forceEntry(target){
+          var rect=target&&target.getBoundingClientRect?target.getBoundingClientRect():{top:0,left:0,bottom:0,right:0,width:0,height:0,x:0,y:0,toJSON:function(){return{};}};
+          return {
+            time: typeof performance!=="undefined"?performance.now():Date.now(),
+            target: target,
+            isIntersecting: true,
+            intersectionRatio: 1,
+            boundingClientRect: rect,
+            intersectionRect: rect,
+            rootBounds: null,
+            isVisible: true
+          };
+        }
+        function fire(target,obs){
+          try{ callback([forceEntry(target)],obs); }catch(err){}
+        }
+        var obs=new OrigIO(function(entries,observer){
+          callback((entries||[]).map(function(e){
+            return {
+              time: e.time,
+              target: e.target,
+              isIntersecting: true,
+              intersectionRatio: 1,
+              boundingClientRect: e.boundingClientRect,
+              intersectionRect: e.boundingClientRect||e.intersectionRect,
+              rootBounds: e.rootBounds,
+              isVisible: true
+            };
+          }),observer);
+        },options);
+        var _observe=obs.observe.bind(obs);
+        obs.observe=function(target){
+          _observe(target);
+          try{
+            queueMicrotask(function(){ fire(target,obs); });
+            setTimeout(function(){ fire(target,obs); },0);
+            setTimeout(function(){ fire(target,obs); },50);
+            setTimeout(function(){ fire(target,obs); },250);
+          }catch(err){}
+        };
+        return obs;
+      };
+      window.IntersectionObserver.prototype=OrigIO.prototype;
+      try{ Object.setPrototypeOf(window.IntersectionObserver, OrigIO); }catch(e){}
+    }
+  }catch(e){}
+
+  /* Selective DOM reveal: entrance fades only (not hover popovers) */
+  (function selectiveEntranceReveal(){
+    var ENTRANCE_Y=/translate-y-(?:[1-9]|1[0-2]|14|16|20|24)\\b|-translate-y-/;
+    var HOVER_SHOW=/group-hover:opacity-|group-focus-within:opacity-|peer-hover:opacity-/;
+    function isReviewChrome(el){
+      if(!el||!el.closest)return false;
+      return !!el.closest("#review-toolbar,#review-sidebar,#review-pins-layer,#review-active-bubble,#review-live-toasts,#review-notifications-panel,#review-notifications-wrap,#review-click-shield,#review-screenshot-lightbox,#review-selection-bar,#review-follow-banner,#review-remote-cursor,#review-mention-dropdown,.review-bubble,.review-assign-picker,.review-pm-picker,.review-toolbar,.review-sidebar");
+    }
+    function classStr(el){
+      if(!el)return "";
+      if(typeof el.className==="string")return el.className;
+      if(el.className&&typeof el.className.baseVal==="string")return el.className.baseVal;
+      return "";
+    }
+    function isHoverChrome(el){
+      var cls=classStr(el);
+      if(HOVER_SHOW.test(cls))return true;
+      try{
+        var cs=window.getComputedStyle(el);
+        if(cs&&(cs.position==="absolute"||cs.position==="fixed"))return true;
+      }catch(e){}
+      return false;
+    }
+    function isEntranceCandidate(el){
+      if(!el||el.nodeType!==1||isReviewChrome(el)||isHoverChrome(el))return false;
+      var cls=classStr(el);
+      var style=el.style;
+      var hasOpacity0=cls.indexOf("opacity-0")!==-1||(style&&style.opacity==="0");
+      if(!hasOpacity0)return false;
+      if(ENTRANCE_Y.test(cls))return true;
+      if(cls.indexOf("transition-[opacity,transform]")!==-1)return true;
+      if(style&&style.transform&&/translateY\\s*\\(\\s*[1-9]/.test(style.transform))return true;
+      return false;
+    }
+    function reveal(el){
+      if(!el||!el.style||!isEntranceCandidate(el))return;
+      el.style.setProperty("opacity","1","important");
+      el.style.setProperty("transform","none","important");
+      el.style.setProperty("translate","none","important");
+      el.style.setProperty("filter","none","important");
+      el.style.setProperty("visibility","visible","important");
+      try{
+        el.classList.remove("opacity-0","invisible","translate-y-1","translate-y-2","translate-y-3","translate-y-4","translate-y-5","translate-y-6","translate-y-7","translate-y-8","translate-y-10","translate-y-12","translate-y-16","translate-y-20","translate-y-24");
+        el.classList.add("opacity-100","translate-y-0");
+      }catch(e){}
+    }
+    var sweepTimer=0;
+    function sweep(){
+      if(!document.body)return;
+      var nodes=document.body.querySelectorAll(".opacity-0,[class*=\\"opacity-0\\"],[style*=\\"opacity: 0\\"],[style*=\\"opacity:0\\"]");
+      for(var i=0;i<nodes.length;i++){
+        if(isEntranceCandidate(nodes[i]))reveal(nodes[i]);
+      }
+    }
+    function scheduleSweep(){
+      if(sweepTimer)return;
+      sweepTimer=setTimeout(function(){ sweepTimer=0; sweep(); },48);
+    }
+    function boot(){
+      sweep();
+      try{
+        var mo=new MutationObserver(scheduleSweep);
+        mo.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:["class","style"]});
+      }catch(e){}
+      setTimeout(sweep,0);
+      setTimeout(sweep,100);
+      setTimeout(sweep,500);
+      setTimeout(sweep,1500);
+      setTimeout(sweep,3000);
+    }
+    if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",boot);
+    else boot();
+  })();
+})();
+
 if(!PREFIX)return;
 function rewrite(url){
   if(url==null)return url;
@@ -72,69 +233,6 @@ if(typeof Worker!=="undefined"){
   window.Worker=function(scriptURL,options){return new OrigWorker(rewrite(String(scriptURL)),options);};
   window.Worker.prototype=OrigWorker.prototype;
 }
-
-/* Scroll-into-view only — do not force hover/popover opacity-0 open */
-(function scrollIntoViewAssist(){
-  var _mm=window.matchMedia.bind(window);
-  window.matchMedia=function(query){
-    var q=String(query||"");
-    if(/prefers-reduced-motion\\s*:\\s*reduce/i.test(q)){
-      return {
-        matches:true,
-        media:q,
-        onchange:null,
-        addListener:function(){},
-        removeListener:function(){},
-        addEventListener:function(){},
-        removeEventListener:function(){},
-        dispatchEvent:function(){return false;}
-      };
-    }
-    return _mm(query);
-  };
-
-  var OrigIO=window.IntersectionObserver;
-  if(!OrigIO)return;
-  window.IntersectionObserver=function(callback,options){
-    function forceEntry(target){
-      var rect=target&&target.getBoundingClientRect?target.getBoundingClientRect():{top:0,left:0,bottom:0,right:0,width:0,height:0,x:0,y:0,toJSON:function(){return{};}};
-      return {
-        time: typeof performance!=="undefined"?performance.now():Date.now(),
-        target: target,
-        isIntersecting: true,
-        intersectionRatio: 1,
-        boundingClientRect: rect,
-        intersectionRect: rect,
-        rootBounds: null,
-        isVisible: true
-      };
-    }
-    var obs=new OrigIO(function(entries,observer){
-      callback((entries||[]).map(function(e){
-        return {
-          time: e.time,
-          target: e.target,
-          isIntersecting: true,
-          intersectionRatio: 1,
-          boundingClientRect: e.boundingClientRect,
-          intersectionRect: e.boundingClientRect||e.intersectionRect,
-          rootBounds: e.rootBounds,
-          isVisible: true
-        };
-      }),observer);
-    },options);
-    var _observe=obs.observe.bind(obs);
-    obs.observe=function(target){
-      _observe(target);
-      try{
-        queueMicrotask(function(){ try{ callback([forceEntry(target)],obs); }catch(err){} });
-      }catch(err){}
-    };
-    return obs;
-  };
-  window.IntersectionObserver.prototype=OrigIO.prototype;
-  try{ Object.setPrototypeOf(window.IntersectionObserver, OrigIO); }catch(e){}
-})();
 })();</script>`;
 }
 
