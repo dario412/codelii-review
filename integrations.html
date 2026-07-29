@@ -135,6 +135,65 @@
   </div>
 </main>
 
+<!-- Webhook connect modal (Teams / Discord) -->
+<div class="modal-backdrop" id="modal-webhook">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="webhook-title">
+    <div class="modal-head">
+      <div class="modal-glyph" id="webhook-glyph" data-icon="link" data-icon-size="20"></div>
+      <div class="titles">
+        <h2 id="webhook-title">Connect</h2>
+        <p class="sub" id="webhook-sub">Paste your incoming webhook URL.</p>
+      </div>
+      <button class="btn btn-icon" data-close="modal-webhook" data-icon="close" data-icon-size="16" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      <div class="error-box" id="webhook-error"></div>
+      <div class="field">
+        <label for="webhook-url">Webhook URL</label>
+        <input id="webhook-url" type="url" placeholder="https://" autocomplete="off" spellcheck="false">
+        <p class="field-hint" id="webhook-hint"></p>
+      </div>
+      <div class="field">
+        <label for="webhook-label">Channel label <span class="field-optional">(optional)</span></label>
+        <input id="webhook-label" type="text" placeholder="e.g. #client-reviews" maxlength="80" autocomplete="off">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" data-close="modal-webhook">Cancel</button>
+      <button class="btn btn-accent" type="button" id="webhook-save"><span data-label>Connect</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- Email digest modal -->
+<div class="modal-backdrop" id="modal-digest">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="digest-title">
+    <div class="modal-head">
+      <div class="modal-glyph" data-icon="mail" data-icon-size="20"></div>
+      <div class="titles">
+        <h2 id="digest-title">Email digest</h2>
+        <p class="sub">Get a summary of open comments across your projects.</p>
+      </div>
+      <button class="btn btn-icon" data-close="modal-digest" data-icon="close" data-icon-size="16" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+      <div class="error-box" id="digest-error"></div>
+      <div class="field">
+        <label for="digest-frequency">Frequency</label>
+        <select id="digest-frequency">
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly (Mondays)</option>
+        </select>
+        <p class="field-hint">Uses Resend (same as invites and @mentions). Digests only send when you have open comments.</p>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" type="button" data-close="modal-digest">Cancel</button>
+      <button class="btn btn-accent" type="button" id="digest-save"><span data-label>Save</span></button>
+    </div>
+  </div>
+</div>
+
 <script>
 (function () {
   if (!window.ReviewAuth?.isLoggedIn()) return;
@@ -322,6 +381,130 @@
     actions.appendChild(hint);
   }
 
+  function openModal(id) {
+    document.getElementById(id)?.classList.add('open');
+  }
+
+  function closeModal(id) {
+    document.getElementById(id)?.classList.remove('open');
+  }
+
+  document.querySelectorAll('[data-close]').forEach((btn) => {
+    btn.addEventListener('click', () => closeModal(btn.getAttribute('data-close')));
+  });
+  document.querySelectorAll('.modal-backdrop').forEach((backdrop) => {
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) closeModal(backdrop.id);
+    });
+  });
+
+  let webhookProvider = null;
+  const WEBHOOK_MODALS = {
+    teams: {
+      title: 'Connect Microsoft Teams',
+      sub: 'Paste an Incoming Webhook or Power Automate URL for the channel you want.',
+      hint: 'In Teams: channel ⋯ → Workflows / Connectors → Incoming Webhook → copy the URL.',
+      placeholder: 'https://…webhook.office.com/…',
+      connectedOk: 'Teams connected.',
+    },
+    discord: {
+      title: 'Connect Discord',
+      sub: 'Paste a channel webhook URL from Discord.',
+      hint: 'In Discord: channel settings → Integrations → Webhooks → New Webhook → copy URL.',
+      placeholder: 'https://discord.com/api/webhooks/…',
+      connectedOk: 'Discord connected.',
+    },
+  };
+
+  function openWebhookModal(provider) {
+    const cfg = WEBHOOK_MODALS[provider];
+    if (!cfg) return;
+    webhookProvider = provider;
+    document.getElementById('webhook-title').textContent = cfg.title;
+    document.getElementById('webhook-sub').textContent = cfg.sub;
+    document.getElementById('webhook-hint').textContent = cfg.hint;
+    const input = document.getElementById('webhook-url');
+    input.value = '';
+    input.placeholder = cfg.placeholder;
+    document.getElementById('webhook-label').value = '';
+    const err = document.getElementById('webhook-error');
+    err.textContent = '';
+    err.classList.remove('show');
+    openModal('modal-webhook');
+    setTimeout(() => input.focus(), 50);
+  }
+
+  document.getElementById('webhook-save').onclick = async () => {
+    const cfg = WEBHOOK_MODALS[webhookProvider];
+    if (!cfg || !webhookProvider) return;
+    const btn = document.getElementById('webhook-save');
+    const err = document.getElementById('webhook-error');
+    err.textContent = '';
+    err.classList.remove('show');
+    const webhookUrl = document.getElementById('webhook-url').value.trim();
+    if (!webhookUrl) {
+      err.textContent = 'Paste a webhook URL to continue.';
+      err.classList.add('show');
+      return;
+    }
+    btn.disabled = true;
+    setLabel(btn, 'Connecting…');
+    try {
+      const res = await fetch('/api/integrations', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({
+          action: 'connect',
+          provider: webhookProvider,
+          webhookUrl,
+          label: document.getElementById('webhook-label').value.trim(),
+        }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'Could not connect');
+      closeModal('modal-webhook');
+      showFlash('ok', cfg.connectedOk);
+      await load();
+    } catch (e) {
+      err.textContent = e.message || 'Could not connect';
+      err.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      setLabel(btn, 'Connect');
+    }
+  };
+
+  document.getElementById('digest-save').onclick = async () => {
+    const btn = document.getElementById('digest-save');
+    const err = document.getElementById('digest-error');
+    err.textContent = '';
+    err.classList.remove('show');
+    btn.disabled = true;
+    setLabel(btn, 'Saving…');
+    try {
+      const res = await fetch('/api/integrations', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({
+          action: 'save',
+          provider: 'digest',
+          frequency: document.getElementById('digest-frequency').value,
+        }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(out.error || 'Could not save');
+      closeModal('modal-digest');
+      showFlash('ok', 'Digest preference saved.');
+      await load();
+    } catch (e) {
+      err.textContent = e.message || 'Could not save';
+      err.classList.add('show');
+    } finally {
+      btn.disabled = false;
+      setLabel(btn, 'Save');
+    }
+  };
+
   function paintWebhookCard(id, data, opts) {
     const status = document.getElementById(`${id}-status`);
     const details = document.getElementById(`${id}-details`);
@@ -365,6 +548,12 @@
         }
       };
 
+      const change = document.createElement('button');
+      change.type = 'button';
+      change.className = 'btn';
+      change.innerHTML = '<span data-label>Change URL</span>';
+      change.onclick = () => openWebhookModal(id);
+
       const disconnect = document.createElement('button');
       disconnect.type = 'button';
       disconnect.className = 'btn';
@@ -384,7 +573,7 @@
         await load();
       };
 
-      actions.append(testBtn, disconnect);
+      actions.append(testBtn, change, disconnect);
       return;
     }
 
@@ -392,42 +581,12 @@
     status.className = 'integration-status';
     card.classList.remove('is-connected');
 
-    const form = document.createElement('div');
-    form.className = 'integration-webhook-form';
-    const input = document.createElement('input');
-    input.type = 'url';
-    input.className = 'integration-webhook-input';
-    input.placeholder = opts.placeholder;
-    input.autocomplete = 'off';
-    const save = document.createElement('button');
-    save.type = 'button';
-    save.className = 'btn btn-accent';
-    save.innerHTML = `<span data-label>${opts.connectLabel}</span>`;
-    save.onclick = async () => {
-      save.disabled = true;
-      setLabel(save, 'Saving…');
-      try {
-        const res = await fetch('/api/integrations', {
-          method: 'POST',
-          headers: ReviewAuth.headers(),
-          body: JSON.stringify({
-            action: 'connect',
-            provider: id,
-            webhookUrl: input.value.trim(),
-          }),
-        });
-        const out = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(out.error || 'Could not save webhook');
-        showFlash('ok', opts.connectedOk);
-        await load();
-      } catch (err) {
-        showFlash('err', err.message || 'Could not save webhook');
-        save.disabled = false;
-        setLabel(save, opts.connectLabel);
-      }
-    };
-    form.append(input, save);
-    actions.appendChild(form);
+    const connect = document.createElement('button');
+    connect.type = 'button';
+    connect.className = 'btn btn-accent';
+    connect.innerHTML = `<span data-label>${opts.connectLabel}</span>`;
+    connect.onclick = () => openWebhookModal(id);
+    actions.appendChild(connect);
     const hint = document.createElement('p');
     hint.className = 'integration-hint';
     hint.textContent = opts.hint;
@@ -440,10 +599,8 @@
       testOk: 'Test message sent to Teams.',
       disconnectConfirm: 'Disconnect Microsoft Teams?',
       disconnected: 'Teams disconnected.',
-      placeholder: 'https://…webhook.office.com/… or Power Automate URL',
-      connectLabel: 'Save webhook',
-      connectedOk: 'Teams connected.',
-      hint: 'In Teams: channel → Connectors / Workflows → Incoming Webhook → copy URL.',
+      connectLabel: 'Connect Teams',
+      hint: 'Opens a dialog to paste your Teams incoming webhook URL.',
     });
   }
 
@@ -453,10 +610,8 @@
       testOk: 'Test message sent to Discord.',
       disconnectConfirm: 'Disconnect Discord?',
       disconnected: 'Discord disconnected.',
-      placeholder: 'https://discord.com/api/webhooks/…',
-      connectLabel: 'Save webhook',
-      connectedOk: 'Discord connected.',
-      hint: 'In Discord: channel settings → Integrations → Webhooks → New Webhook → copy URL.',
+      connectLabel: 'Connect Discord',
+      hint: 'Opens a dialog to paste your Discord webhook URL.',
     });
   }
 
@@ -489,60 +644,18 @@
       details.textContent = digest.lastSentAt
         ? `Last sent ${formatDate(digest.lastSentAt)}`
         : 'Will send when you have open comments.';
-    } else {
-      status.textContent = 'Off';
-      status.className = 'integration-status';
-      card.classList.remove('is-connected');
-    }
 
-    const row = document.createElement('div');
-    row.className = 'integration-digest-row';
-    const select = document.createElement('select');
-    select.className = 'integration-digest-select';
-    [
-      ['off', 'Off'],
-      ['daily', 'Daily'],
-      ['weekly', 'Weekly (Mondays)'],
-    ].forEach(([value, label]) => {
-      const opt = document.createElement('option');
-      opt.value = value;
-      opt.textContent = label;
-      if (value === frequency) opt.selected = true;
-      select.appendChild(opt);
-    });
+      const change = document.createElement('button');
+      change.type = 'button';
+      change.className = 'btn';
+      change.innerHTML = '<span data-label>Change</span>';
+      change.onclick = () => {
+        document.getElementById('digest-frequency').value = frequency;
+        document.getElementById('digest-error').textContent = '';
+        document.getElementById('digest-error').classList.remove('show');
+        openModal('modal-digest');
+      };
 
-    const save = document.createElement('button');
-    save.type = 'button';
-    save.className = 'btn btn-accent';
-    save.innerHTML = '<span data-label>Save</span>';
-    save.onclick = async () => {
-      save.disabled = true;
-      setLabel(save, 'Saving…');
-      try {
-        const res = await fetch('/api/integrations', {
-          method: 'POST',
-          headers: ReviewAuth.headers(),
-          body: JSON.stringify({
-            action: 'save',
-            provider: 'digest',
-            frequency: select.value,
-          }),
-        });
-        const out = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(out.error || 'Could not save');
-        showFlash('ok', 'Digest preference saved.');
-        await load();
-      } catch (err) {
-        showFlash('err', err.message || 'Could not save');
-        save.disabled = false;
-        setLabel(save, 'Save');
-      }
-    };
-
-    row.append(select, save);
-    actions.appendChild(row);
-
-    if (frequency !== 'off') {
       const sendNow = document.createElement('button');
       sendNow.type = 'button';
       sendNow.className = 'btn';
@@ -567,12 +680,47 @@
           setLabel(sendNow, 'Send now');
         }
       };
-      actions.appendChild(sendNow);
+
+      const turnOff = document.createElement('button');
+      turnOff.type = 'button';
+      turnOff.className = 'btn';
+      turnOff.innerHTML = '<span data-label>Turn off</span>';
+      turnOff.onclick = async () => {
+        const res = await fetch('/api/integrations?provider=digest', {
+          method: 'DELETE',
+          headers: ReviewAuth.headers(),
+        });
+        if (!res.ok) {
+          const out = await res.json().catch(() => ({}));
+          showFlash('err', out.error || 'Could not turn off');
+          return;
+        }
+        showFlash('ok', 'Email digest turned off.');
+        await load();
+      };
+
+      actions.append(change, sendNow, turnOff);
+      return;
     }
 
+    status.textContent = 'Off';
+    status.className = 'integration-status';
+    card.classList.remove('is-connected');
+
+    const connect = document.createElement('button');
+    connect.type = 'button';
+    connect.className = 'btn btn-accent';
+    connect.innerHTML = '<span data-label>Set up digest</span>';
+    connect.onclick = () => {
+      document.getElementById('digest-frequency').value = 'daily';
+      document.getElementById('digest-error').textContent = '';
+      document.getElementById('digest-error').classList.remove('show');
+      openModal('modal-digest');
+    };
+    actions.appendChild(connect);
     const hint = document.createElement('p');
     hint.className = 'integration-hint';
-    hint.textContent = 'Uses the same Resend setup as invites and @mention emails. Cron runs once a day (weekly digests on Mondays).';
+    hint.textContent = 'Choose daily or weekly — we’ll email a summary of open comments.';
     actions.appendChild(hint);
   }
 
