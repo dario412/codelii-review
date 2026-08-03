@@ -11,6 +11,7 @@
  * Stripe and get told "no".
  */
 import { stripe, TRIAL_DAYS } from './stripe.js';
+import { isAgencyEmail } from './permissions.js';
 
 /** Statuses that may create projects. Everything else is blocked. */
 const ENTITLED = new Set(['trialing', 'active']);
@@ -39,6 +40,8 @@ export function canCreateProjects(user) {
   if (!user) return false;
   // Share-link guests never have their own workspace; they can't buy one either.
   if (user.guest === true) return false;
+  // Agency staff on the allowlist create client projects without a personal plan.
+  if (isAgencyEmail(user.email)) return true;
   return ENTITLED.has(billingOf(user).status);
 }
 
@@ -180,15 +183,18 @@ export async function syncFromStripe(user) {
 /** What the browser is allowed to know about a user's billing state. */
 export function publicBilling(user) {
   const b = billingOf(user);
+  const entitled = canCreateProjects(user);
+  const agency = isAgencyEmail(user?.email);
   return {
-    status: b.status,
-    entitled: canCreateProjects(user),
-    trialAvailable: trialAvailable(user),
+    status: agency && b.status === 'none' ? 'active' : b.status,
+    entitled,
+    agency,
+    trialAvailable: agency ? false : trialAvailable(user),
     trialDays: TRIAL_DAYS,
     trialEnd: b.trialEnd,
     renewsAt: b.currentPeriodEnd,
     cancelAtPeriodEnd: b.cancelAtPeriodEnd,
     hasCustomer: Boolean(b.customerId),
-    reason: canCreateProjects(user) ? null : blockedReason(user),
+    reason: entitled ? null : blockedReason(user),
   };
 }

@@ -10,6 +10,9 @@
  *
  * Set CURSOR_TOOLS_EMAILS to a comma-separated list to change the allowlist,
  * or to "*" to open the tools to every project owner once beta is over.
+ *
+ * The same allowlist also skips the Stripe project-creation paywall so agency
+ * staff can create client projects without starting a personal subscription.
  */
 
 const DEFAULT_ALLOWED_EMAILS = [
@@ -26,13 +29,16 @@ function allowedEmails() {
     .filter(Boolean);
 }
 
+export function isAgencyEmail(email) {
+  const allowed = allowedEmails();
+  if (allowed.includes('*')) return true;
+  return allowed.includes(String(email || '').trim().toLowerCase());
+}
+
 export function canUseCursorTools(project, user) {
   if (!project || !user) return false;
   if (project.ownerId !== user.id) return false;
-
-  const allowed = allowedEmails();
-  if (allowed.includes('*')) return true;
-  return allowed.includes((user.email || '').toLowerCase());
+  return isAgencyEmail(user.email);
 }
 
 export const CURSOR_TOOLS_DENIED =
