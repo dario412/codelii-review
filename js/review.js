@@ -34,7 +34,37 @@
     fixPollTimer: null,
     activity: [],
     progress: null,
+    device: 'desktop',
+    shellHost: false,
+    previewPage: null,
   };
+
+  const REVIEW_DEVICES = ['desktop', 'tablet', 'mobile'];
+  const DEVICE_WIDTHS = { desktop: null, tablet: 768, mobile: 390 };
+  const DEVICE_LABELS = { desktop: 'Desktop', tablet: 'Tablet', mobile: 'Mobile' };
+  const DEVICE_ICONS = { desktop: 'desktop', tablet: 'deviceTablet', mobile: 'deviceMobile' };
+
+  const urlParams = new URLSearchParams(window.location.search);
+  const isEmbed = urlParams.get('codelii_embed') === '1';
+
+  function normalizeDevice(value) {
+    const d = String(value || 'desktop').toLowerCase();
+    return REVIEW_DEVICES.includes(d) ? d : 'desktop';
+  }
+
+  function commentDevice(c) {
+    return normalizeDevice(c?.device);
+  }
+
+  function readInitialDevice() {
+    const fromUrl = normalizeDevice(urlParams.get('device'));
+    if (urlParams.has('device')) return fromUrl;
+    try {
+      const stored = sessionStorage.getItem('codelii_device');
+      if (stored) return normalizeDevice(stored);
+    } catch (e) {}
+    return 'desktop';
+  }
 
   const page = currentPage();
   const projectId = project.id;
@@ -46,6 +76,7 @@
   // Project owner can delete any comment and hide/unhide. Server enforces this.
   const isOwner = project.isOwner === true;
   const pmProviders = Array.isArray(project.pmProviders) ? project.pmProviders : [];
+  state.device = readInitialDevice();
 
   /* Phosphor Icons (bold, 256x256) — inlined so the overlay stays dependency-free */
   const PHOSPHOR_PATHS = {
@@ -70,6 +101,9 @@
     house: 'M222.14,105.85l-80-80a20,20,0,0,0-28.28,0l-80,80A19.86,19.86,0,0,0,28,120v92a12,12,0,0,0,12,12H216a12,12,0,0,0,12-12V120A19.86,19.86,0,0,0,222.14,105.85ZM204,200H160V144a12,12,0,0,0-12-12H108a12,12,0,0,0-12,12v56H52V122.49l76-76,76,76Z',
     sealCheck: 'M228.75,100.05c-3.52-3.67-7.15-7.46-8.34-10.33-1.06-2.56-1.14-7.83-1.21-12.47-.15-10-.34-22.44-9.18-31.27s-21.27-9-31.27-9.18c-4.64-.07-9.91-.15-12.47-1.21-2.87-1.19-6.66-4.82-10.33-8.34C148.87,20.46,140.05,12,128,12s-20.87,8.46-27.95,15.25c-3.67,3.52-7.46,7.15-10.33,8.34-2.56,1.06-7.83,1.14-12.47,1.21C67.25,37,54.81,37.14,46,46S37,67.25,36.8,77.25c-.07,4.64-.15,9.91-1.21,12.47-1.19,2.87-4.82,6.66-8.34,10.33C20.46,107.13,12,116,12,128S20.46,148.87,27.25,156c3.52,3.67,7.15,7.46,8.34,10.33,1.06,2.56,1.14,7.83,1.21,12.47.15,10,.34,22.44,9.18,31.27s21.27,9,31.27,9.18c4.64.07,9.91.15,12.47,1.21,2.87,1.19,6.66,4.82,10.33,8.34C107.13,235.54,116,244,128,244s20.87-8.46,27.95-15.25c3.67-3.52,7.46-7.15,10.33-8.34,2.56-1.06,7.83-1.14,12.47-1.21,10-.15,22.44-.34,31.27-9.18s9-21.27,9.18-31.27c.07-4.64.15-9.91,1.21-12.47,1.19-2.87,4.82-6.66,8.34-10.33C235.54,148.87,244,140.05,244,128S235.54,107.13,228.75,100.05Zm-17.32,39.29c-4.82,5-10.28,10.72-13.19,17.76-2.82,6.8-2.93,14.16-3,21.29-.08,5.36-.19,12.71-2.15,14.66s-9.3,2.07-14.66,2.15c-7.13.11-14.49.22-21.29,3-7,2.91-12.73,8.37-17.76,13.19C135.78,214.84,130.4,220,128,220s-7.78-5.16-11.34-8.57c-5-4.82-10.72-10.28-17.76-13.19-6.8-2.82-14.16-2.93-21.29-3-5.36-.08-12.71-.19-14.66-2.15s-2.07-9.3-2.15-14.66c-.11-7.13-.22-14.49-3-21.29-2.91-7-8.37-12.73-13.19-17.76C41.16,135.78,36,130.4,36,128s5.16-7.78,8.57-11.34c4.82-5,10.28-10.72,13.19-17.76,2.82-6.8,2.93-14.16,3-21.29C60.88,72.25,61,64.9,63,63s9.3-2.07,14.66-2.15c7.13-.11,14.49-.22,21.29-3,7-2.91,12.73-8.37,17.76-13.19C120.22,41.16,125.6,36,128,36s7.78,5.16,11.34,8.57c5,4.82,10.72,10.28,17.76,13.19,6.8,2.82,14.16,2.93,21.29,3,5.36.08,12.71.19,14.66,2.15s2.07,9.3,2.15,14.66c.11,7.13.22,14.49,3,21.29,2.91,7,8.37,12.73,13.19,17.76,3.41,3.56,8.57,8.94,8.57,11.34S214.84,135.78,211.43,139.34ZM176.49,95.51a12,12,0,0,1,0,17l-56,56a12,12,0,0,1-17,0l-24-24a12,12,0,1,1,17-17L112,143l47.51-47.52A12,12,0,0,1,176.49,95.51Z',
     gitPullRequest: 'M108,64A36,36,0,1,0,60,97.94v60.12a36,36,0,1,0,24,0V97.94A36.07,36.07,0,0,0,108,64ZM72,52A12,12,0,1,1,60,64,12,12,0,0,1,72,52Zm0,152a12,12,0,1,1,12-12A12,12,0,0,1,72,204Zm140-45.94V110.63a27.81,27.81,0,0,0-8.2-19.8L173,60h19a12,12,0,0,0,0-24H144a12,12,0,0,0-12,12V96a12,12,0,0,0,24,0V77l30.83,30.83a4,4,0,0,1,1.17,2.83v47.43a36,36,0,1,0,24,0ZM200,204a12,12,0,1,1,12-12A12,12,0,0,1,200,204Z',
+    desktop: 'M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H88v16H72a12,12,0,0,0,0,24H184a12,12,0,0,0,0-24H168V200h40a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40ZM208,176H48V64H208Z',
+    deviceTablet: 'M192,24H64A24,24,0,0,0,40,48V208a24,24,0,0,0,24,24H192a24,24,0,0,0,24-24V48A24,24,0,0,0,192,24Zm0,184H64V48H192Z',
+    deviceMobile: 'M176,16H80A24,24,0,0,0,56,40V216a24,24,0,0,0,24,24h96a24,24,0,0,0,24-24V40A24,24,0,0,0,176,16Zm0,200H80V40h96Z',
   };
 
   function icon(name, size = 17) {
@@ -118,13 +152,101 @@
     return `${viewPrefix}/${clean}${q}`;
   }
 
+  function commentDeepLinkQuery(comment, opts = {}) {
+    const params = new URLSearchParams();
+    params.set('comment', comment.id);
+    const device = commentDevice(comment);
+    if (device !== 'desktop') params.set('device', device);
+    if (opts.resolved || comment.resolved) params.set('resolved', '1');
+    return params.toString();
+  }
+
+  function commentHref(comment, opts = {}) {
+    return pageHref(comment.page, commentDeepLinkQuery(comment, opts));
+  }
+
+  function goToCommentHref(href) {
+    if (isEmbed && window.top && window.top !== window) {
+      window.top.location.href = href;
+      return;
+    }
+    window.location.href = href;
+  }
+
   function withProject(url) {
     const sep = url.includes('?') ? '&' : '?';
     return `${url}${sep}projectId=${encodeURIComponent(projectId)}`;
   }
 
+  function viewingPage() {
+    if (state.shellHost) return state.previewPage || page;
+    return page;
+  }
+
+  function previewFrame() {
+    return document.getElementById('review-device-iframe');
+  }
+
+  function postToPreview(payload) {
+    const frame = previewFrame();
+    if (!frame?.contentWindow) return;
+    frame.contentWindow.postMessage(payload, window.location.origin);
+  }
+
+  function notifyShellHost(payload) {
+    if (!isEmbed || !window.parent || window.parent === window) return;
+    window.parent.postMessage(payload, window.location.origin);
+  }
+
   async function init() {
-    buildUI();
+    document.documentElement.dataset.reviewDevice = state.device;
+    if (isEmbed) document.documentElement.classList.add('review-embed');
+
+    // Parent shell: full toolbar + sidebar stay outside; only the site is framed.
+    if (!isEmbed && state.device !== 'desktop') {
+      state.shellHost = true;
+      state.previewPage = page;
+      buildUI({ mode: 'shell' });
+      mountDevicePreview();
+      window.addEventListener('message', onShellHostMessage);
+      await loadUsers();
+      await loadComments();
+      await loadApprovals();
+      await loadNotifications();
+      loadActivity();
+      renderSidebar();
+      renderApproveButton();
+      renderNotificationBadge();
+      startLiveSync();
+      document.addEventListener('visibilitychange', () => {
+        startLiveSync();
+        if (!document.hidden) runLiveSync();
+      });
+      return;
+    }
+
+    buildUI({ mode: isEmbed ? 'embed' : 'full' });
+    if (isEmbed) {
+      document.addEventListener(
+        'click',
+        (e) => {
+          const a = e.target.closest?.('a[href]');
+          if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
+          const raw = a.getAttribute('href');
+          if (!raw || raw.startsWith('#') || raw.startsWith('mailto:') || raw.startsWith('tel:') || raw.startsWith('javascript:')) return;
+          let url;
+          try { url = new URL(raw, window.location.href); } catch { return; }
+          if (url.origin !== window.location.origin) return;
+          // Keep the preview inside the device iframe across in-site navigation.
+          e.preventDefault();
+          url.searchParams.set('codelii_embed', '1');
+          url.searchParams.set('device', state.device);
+          window.location.href = `${url.pathname}${url.search}${url.hash}`;
+        },
+        true
+      );
+      window.addEventListener('message', onEmbedHostCommand);
+    }
     await loadUsers();
     await loadComments();
     await loadApprovals();
@@ -141,6 +263,9 @@
     handleFollowDeepLink();
     startLiveSync();
     startPresenceTracking();
+    if (isEmbed) {
+      notifyShellHost({ type: 'codelii-sync', page: currentPage(), commentMode: state.commentMode });
+    }
 
     document.addEventListener('visibilitychange', () => {
       startLiveSync();
@@ -150,6 +275,138 @@
         sendHeartbeat(true);
       }
     });
+  }
+
+  function onShellHostMessage(event) {
+    if (event.origin !== window.location.origin) return;
+    const data = event.data;
+    if (!data || typeof data !== 'object') return;
+
+    if (data.type === 'codelii-device') {
+      setReviewDevice(data.device);
+      return;
+    }
+
+    if (data.type !== 'codelii-sync') return;
+
+    if (data.page) {
+      state.previewPage = data.page;
+      const nextUrl = new URL(window.location.href);
+      // Keep the parent URL aligned with the framed page for refresh / sharing.
+      const clean = String(data.page).replace(/^\//, '');
+      const path = `${viewPrefix}/${clean}`.replace(/\/+/g, '/');
+      if (nextUrl.pathname !== path) {
+        nextUrl.pathname = path;
+        history.replaceState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+      }
+      loadApprovals();
+      renderApproveButton();
+    }
+    if (typeof data.commentMode === 'boolean') {
+      paintCommentModeButton(data.commentMode);
+    }
+    if (data.action === 'refresh') {
+      loadComments().then(() => {
+        renderSidebar();
+        loadActivity();
+        loadNotifications().then(() => renderNotificationBadge());
+      });
+    }
+  }
+
+  function onEmbedHostCommand(event) {
+    if (event.origin !== window.location.origin) return;
+    const data = event.data;
+    if (!data || data.type !== 'codelii-cmd') return;
+
+    if (data.cmd === 'setCommentMode') {
+      applyCommentMode(Boolean(data.value));
+      notifyShellHost({ type: 'codelii-sync', commentMode: state.commentMode });
+      return;
+    }
+    if (data.cmd === 'toggleCommentMode') {
+      toggleCommentMode();
+      return;
+    }
+    if (data.cmd === 'navigateToComment' && data.commentId) {
+      const comment = state.comments.find((c) => c.id === data.commentId);
+      if (comment) navigateToComment(comment);
+    }
+  }
+
+  function setReviewDevice(device) {
+    const next = normalizeDevice(device);
+    try { sessionStorage.setItem('codelii_device', next); } catch (e) {}
+
+    if (isEmbed && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'codelii-device', device: next }, window.location.origin);
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete('codelii_embed');
+    if (next === 'desktop') url.searchParams.delete('device');
+    else url.searchParams.set('device', next);
+    window.location.href = `${url.pathname}${url.search}${url.hash}`;
+  }
+
+  function buildDeviceSwitcher() {
+    return el('div', {
+      class: 'review-device-switch',
+      role: 'group',
+      'aria-label': 'Preview size',
+    }, REVIEW_DEVICES.map((id) => el('button', {
+      type: 'button',
+      class: `review-device-btn${state.device === id ? ' is-active' : ''}`,
+      title: `${DEVICE_LABELS[id]} preview`,
+      'aria-pressed': state.device === id ? 'true' : 'false',
+      onclick: () => setReviewDevice(id),
+    }, [
+      icon(DEVICE_ICONS[id], 16),
+      el('span', {}, [DEVICE_LABELS[id]]),
+    ])));
+  }
+
+  function mountDevicePreview() {
+    const width = DEVICE_WIDTHS[state.device] || 390;
+    document.body.classList.add('review-device-shell');
+
+    const frameUrl = new URL(window.location.href);
+    frameUrl.searchParams.set('codelii_embed', '1');
+    frameUrl.searchParams.set('device', state.device);
+
+    const shell = el('div', { class: 'review-device-shell-stage', id: 'review-device-shell' }, [
+      el('div', {
+        class: `review-device-frame review-device-frame-${state.device}`,
+        style: `width:${width}px`,
+      }, [
+        el('div', { class: 'review-device-frame-chrome' }, [
+          el('span', {}, [DEVICE_LABELS[state.device]]),
+          el('span', { class: 'review-device-frame-size' }, [`${width}px`]),
+        ]),
+        el('iframe', {
+          id: 'review-device-iframe',
+          class: 'review-device-iframe',
+          title: `${DEVICE_LABELS[state.device]} preview`,
+          src: `${frameUrl.pathname}${frameUrl.search}${frameUrl.hash}`,
+        }),
+      ]),
+    ]);
+
+    // Hide the underlying full-width page — only the framed preview should show the site.
+    Array.from(document.body.children).forEach((child) => {
+      if (
+        child.id === 'review-toolbar'
+        || child.id === 'review-sidebar'
+        || child.id === 'review-device-shell'
+        || child.id === 'review-selection-bar'
+        || child.id === 'review-cursor-fix-modal'
+      ) return;
+      child.setAttribute('data-review-shell-hidden', '1');
+      child.hidden = true;
+    });
+
+    document.body.appendChild(shell);
   }
 
   function startPresenceTracking() {
@@ -205,7 +462,7 @@
       loadUsers(),
       loadApprovals(),
       loadNotifications(),
-      loadPresence(),
+      state.shellHost ? Promise.resolve() : loadPresence(),
     ]);
 
     const nextFingerprint = commentsFingerprint(state.comments);
@@ -230,7 +487,7 @@
       if (state.notificationsOpen) renderNotificationsPanel();
     }
 
-    renderOnlineUsers();
+    if (!state.shellHost) renderOnlineUsers();
   }
 
   function commentsFingerprint(comments) {
@@ -323,148 +580,165 @@
     positionBubble(bubble, clientX + 18, clientY - 12);
   }
 
-  function buildUI() {
+  function buildUI(opts = {}) {
+    const mode = opts.mode || 'full'; // full | shell | embed
+    const showChrome = mode !== 'embed';
+    const showPins = mode !== 'shell';
     const user = ReviewAuth.getUser();
 
-    const toolbar = el('div', { class: 'review-toolbar', id: 'review-toolbar' }, [
-      el('div', { class: 'review-toolbar-left' }, [
-        el('button', {
-          type: 'button',
-          class: 'review-btn review-btn-toolbar',
-          id: 'review-toggle-sidebar',
-          title: 'Toggle comments sidebar',
-          onclick: toggleSidebar,
-        }, btnContent('list', 'Comments')),
-        el('a', {
-          class: 'review-btn review-btn-toolbar review-btn-quiet',
-          href: '/dashboard.html',
-          title: 'Back to dashboard',
-        }, btnContent('house', 'Dashboard')),
-        el('div', { class: 'review-toolbar-divider' }),
-        el('div', { class: 'review-logo' }, [
-          el('span', { class: 'review-logo-name' }, [project.name || 'Project']),
-          el('span', { class: 'review-logo-badge' }, ['Review']),
+    if (showChrome) {
+      const toolbar = el('div', { class: 'review-toolbar', id: 'review-toolbar' }, [
+        el('div', { class: 'review-toolbar-left' }, [
+          el('button', {
+            type: 'button',
+            class: 'review-btn review-btn-toolbar',
+            id: 'review-toggle-sidebar',
+            title: 'Toggle comments sidebar',
+            onclick: toggleSidebar,
+          }, btnContent('list', 'Comments')),
+          el('a', {
+            class: 'review-btn review-btn-toolbar review-btn-quiet',
+            href: '/dashboard.html',
+            title: 'Back to dashboard',
+          }, btnContent('house', 'Dashboard')),
+          el('div', { class: 'review-toolbar-divider' }),
+          el('div', { class: 'review-logo' }, [
+            el('span', { class: 'review-logo-name' }, [project.name || 'Project']),
+            el('span', { class: 'review-logo-badge' }, [
+              state.device === 'desktop' ? 'Review' : DEVICE_LABELS[state.device],
+            ]),
+          ]),
+          buildDeviceSwitcher(),
+          el('div', { class: 'review-online-wrap', id: 'review-online-wrap' }),
         ]),
-        el('div', { class: 'review-online-wrap', id: 'review-online-wrap' }),
-      ]),
-      el('div', { class: 'review-toolbar-right' }, [
-        el('button', {
-          type: 'button',
-          class: 'review-btn review-btn-approve',
-          id: 'review-approve-btn',
-          title: 'Sign off on this page for agency records',
-          onclick: togglePageApproval,
-        }, btnContent('sealCheck', 'Approve page')),
-        el('button', {
-          type: 'button',
-          class: 'review-btn review-btn-primary',
-          id: 'review-toggle-mode',
-          title: 'Click anywhere on the page to leave a comment',
-          onclick: toggleCommentMode,
-        }, btnContent('plus', 'Add comment')),
-        el('div', { class: 'review-notifications-wrap', id: 'review-notifications-wrap' }, [
+        el('div', { class: 'review-toolbar-right' }, [
+          el('button', {
+            type: 'button',
+            class: 'review-btn review-btn-approve',
+            id: 'review-approve-btn',
+            title: 'Sign off on this page for agency records',
+            onclick: togglePageApproval,
+          }, btnContent('sealCheck', 'Approve page')),
+          el('button', {
+            type: 'button',
+            class: 'review-btn review-btn-primary',
+            id: 'review-toggle-mode',
+            title: 'Click anywhere on the page to leave a comment',
+            onclick: toggleCommentMode,
+          }, btnContent('plus', 'Add comment')),
+          el('div', { class: 'review-notifications-wrap', id: 'review-notifications-wrap' }, [
+            el('button', {
+              type: 'button',
+              class: 'review-btn review-btn-icon',
+              id: 'review-notifications-btn',
+              title: 'Notifications',
+              'aria-label': 'Notifications',
+              onclick: toggleNotifications,
+            }, [
+              icon('bell', 18),
+              el('span', { class: 'review-notifications-badge', id: 'review-notifications-badge' }, ['']),
+            ]),
+            el('div', { class: 'review-notifications-panel', id: 'review-notifications-panel' }),
+          ]),
+          el('div', { class: 'review-user', title: user.email || user.name }, [
+            el('div', { class: 'review-avatar' }, [initials(user.name)]),
+            el('span', { class: 'review-user-name' }, [user.name]),
+          ]),
           el('button', {
             type: 'button',
             class: 'review-btn review-btn-icon',
-            id: 'review-notifications-btn',
-            title: 'Notifications',
-            'aria-label': 'Notifications',
-            onclick: toggleNotifications,
+            title: 'Sign out',
+            'aria-label': 'Sign out',
+            onclick: () => ReviewAuth.logout(),
+          }, [icon('signOut', 17)]),
+        ]),
+      ]);
+
+      const sidebar = el('div', { class: 'review-sidebar open', id: 'review-sidebar' }, [
+        el('div', { class: 'review-sidebar-header' }, [
+          el('div', { class: 'review-sidebar-title' }, [
+            icon('chat', 18),
+            el('h2', {}, ['Comments']),
+          ]),
+          el('span', { class: 'review-sidebar-count', id: 'review-count' }, ['0']),
+        ]),
+        canUseCursorTools
+          ? el('div', { class: 'review-sidebar-prompts', id: 'review-sidebar-prompts' }, [
+            el('p', { class: 'review-sidebar-prompts-label' }, ['Cursor actions']),
+            el('div', { class: 'review-sidebar-prompt-row' }, [
+              el('button', {
+                type: 'button',
+                class: 'review-btn review-btn-prompt',
+                id: 'review-copy-all-prompts',
+                title: 'Copy Cursor prompts for all open comments',
+                onclick: (e) => {
+                  e.stopPropagation();
+                  copyAllOpenPrompts();
+                },
+              }, btnContent('copy', 'Copy prompts')),
+              el('button', {
+                type: 'button',
+                class: 'review-btn review-btn-fix',
+                id: 'review-fix-all',
+                title: 'Start a Cursor agent for all open comments',
+                onclick: (e) => {
+                  e.stopPropagation();
+                  fixAllOpenWithCursor(e.currentTarget);
+                },
+              }, btnContent('sparkle', 'Fix all')),
+            ]),
+          ])
+          : null,
+        el('div', { class: 'review-sidebar-tabs', id: 'review-sidebar-tabs' }, [
+          el('button', {
+            type: 'button',
+            class: 'review-sidebar-tab active',
+            id: 'review-tab-open',
+            onclick: () => setSidebarTab('open'),
           }, [
-            icon('bell', 18),
-            el('span', { class: 'review-notifications-badge', id: 'review-notifications-badge' }, ['']),
+            el('span', { 'data-tab-label': '' }, ['Open']),
+            el('span', { class: 'review-sidebar-tab-count', id: 'review-tab-open-count' }, ['0']),
           ]),
-          el('div', { class: 'review-notifications-panel', id: 'review-notifications-panel' }),
-        ]),
-        el('div', { class: 'review-user', title: user.email || user.name }, [
-          el('div', { class: 'review-avatar' }, [initials(user.name)]),
-          el('span', { class: 'review-user-name' }, [user.name]),
-        ]),
-        el('button', {
-          type: 'button',
-          class: 'review-btn review-btn-icon',
-          title: 'Sign out',
-          'aria-label': 'Sign out',
-          onclick: () => ReviewAuth.logout(),
-        }, [icon('signOut', 17)]),
-      ]),
-    ]);
-
-    const sidebar = el('div', { class: 'review-sidebar open', id: 'review-sidebar' }, [
-      el('div', { class: 'review-sidebar-header' }, [
-        el('div', { class: 'review-sidebar-title' }, [
-          icon('chat', 18),
-          el('h2', {}, ['Comments']),
-        ]),
-        el('span', { class: 'review-sidebar-count', id: 'review-count' }, ['0']),
-      ]),
-      canUseCursorTools
-        ? el('div', { class: 'review-sidebar-prompts', id: 'review-sidebar-prompts' }, [
-          el('p', { class: 'review-sidebar-prompts-label' }, ['Cursor actions']),
-          el('div', { class: 'review-sidebar-prompt-row' }, [
-            el('button', {
-              type: 'button',
-              class: 'review-btn review-btn-prompt',
-              id: 'review-copy-all-prompts',
-              title: 'Copy Cursor prompts for all open comments',
-              onclick: (e) => {
-                e.stopPropagation();
-                copyAllOpenPrompts();
-              },
-            }, btnContent('copy', 'Copy prompts')),
-            el('button', {
-              type: 'button',
-              class: 'review-btn review-btn-fix',
-              id: 'review-fix-all',
-              title: 'Start a Cursor agent for all open comments',
-              onclick: (e) => {
-                e.stopPropagation();
-                fixAllOpenWithCursor(e.currentTarget);
-              },
-            }, btnContent('sparkle', 'Fix all')),
+          el('button', {
+            type: 'button',
+            class: 'review-sidebar-tab',
+            id: 'review-tab-resolved',
+            onclick: () => setSidebarTab('resolved'),
+          }, [
+            el('span', { 'data-tab-label': '' }, ['Resolved']),
+            el('span', { class: 'review-sidebar-tab-count', id: 'review-tab-resolved-count' }, ['0']),
           ]),
-        ])
-        : null,
-      el('div', { class: 'review-sidebar-tabs', id: 'review-sidebar-tabs' }, [
-        el('button', {
-          type: 'button',
-          class: 'review-sidebar-tab active',
-          id: 'review-tab-open',
-          onclick: () => setSidebarTab('open'),
-        }, [
-          el('span', { 'data-tab-label': '' }, ['Open']),
-          el('span', { class: 'review-sidebar-tab-count', id: 'review-tab-open-count' }, ['0']),
+          el('button', {
+            type: 'button',
+            class: 'review-sidebar-tab',
+            id: 'review-tab-activity',
+            onclick: () => setSidebarTab('activity'),
+          }, [
+            el('span', { 'data-tab-label': '' }, ['Activity']),
+          ]),
         ]),
-        el('button', {
-          type: 'button',
-          class: 'review-sidebar-tab',
-          id: 'review-tab-resolved',
-          onclick: () => setSidebarTab('resolved'),
-        }, [
-          el('span', { 'data-tab-label': '' }, ['Resolved']),
-          el('span', { class: 'review-sidebar-tab-count', id: 'review-tab-resolved-count' }, ['0']),
-        ]),
-        el('button', {
-          type: 'button',
-          class: 'review-sidebar-tab',
-          id: 'review-tab-activity',
-          onclick: () => setSidebarTab('activity'),
-        }, [
-          el('span', { 'data-tab-label': '' }, ['Activity']),
-        ]),
-      ]),
-      el('div', { class: 'review-progress', id: 'review-progress', hidden: true }),
-      el('div', { class: 'review-sidebar-list', id: 'review-sidebar-list' }),
-    ]);
+        el('div', { class: 'review-progress', id: 'review-progress', hidden: true }),
+        el('div', { class: 'review-sidebar-list', id: 'review-sidebar-list' }),
+      ]);
 
-    const pinsLayer = el('div', { class: 'review-pins-layer', id: 'review-pins-layer' });
+      document.body.appendChild(toolbar);
+      document.body.appendChild(sidebar);
+    }
 
-    document.body.classList.add('review-active', 'review-sidebar-open');
-    document.body.appendChild(toolbar);
-    document.body.appendChild(sidebar);
-    document.body.appendChild(pinsLayer);
-    ensureCursorFixModal();
-    ensureSelectionBar();
+    if (showPins) {
+      document.body.appendChild(el('div', { class: 'review-pins-layer', id: 'review-pins-layer' }));
+      ensureCursorFixModal();
+      ensureSelectionBar();
+    }
+
+    document.body.classList.add('review-active');
+    if (showChrome) document.body.classList.add('review-sidebar-open');
+    if (mode === 'embed') document.body.classList.add('review-embed-content');
+
+    if (showChrome) {
+      ensureCursorFixModal();
+      ensureSelectionBar();
+    }
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
@@ -853,23 +1127,9 @@
 
     const comment = state.comments.find((c) => c.id === n.commentId);
     if (comment) {
-      if (comment.resolved) {
-        if (samePage(comment.page, page)) {
-          state.sidebarTab = 'resolved';
-          setSidebarTab('resolved');
-          openViewBubble(comment, false, true);
-        } else {
-          window.location.href = pageHref(comment.page, `comment=${comment.id}&resolved=1`);
-        }
-        return;
-      }
-      if (samePage(comment.page, page)) {
-        scrollToComment(comment);
-      } else {
-        window.location.href = pageHref(comment.page, `comment=${comment.id}`);
-      }
+      navigateToComment(comment);
     } else {
-      window.location.href = pageHref(n.page, `comment=${n.commentId}`);
+      goToCommentHref(pageHref(n.page, `comment=${encodeURIComponent(n.commentId)}`));
     }
   }
 
@@ -883,11 +1143,11 @@
   }
 
   function openComments() {
-    return state.comments.filter((c) => !c.resolved);
+    return state.comments.filter((c) => !c.resolved && commentDevice(c) === state.device);
   }
 
   function resolvedComments() {
-    return state.comments.filter((c) => c.resolved);
+    return state.comments.filter((c) => c.resolved && commentDevice(c) === state.device);
   }
 
   function sidebarComments() {
@@ -1104,23 +1364,24 @@
     document.body.classList.toggle('review-sidebar-open', state.sidebarOpen);
   }
 
-  function toggleCommentMode() {
-    state.commentMode = !state.commentMode;
+  function paintCommentModeButton(on) {
+    state.commentMode = on;
     const btn = document.getElementById('review-toggle-mode');
-    document.body.classList.toggle('review-comment-mode', state.commentMode);
-    btn.classList.toggle('review-btn-active', state.commentMode);
-    btn.classList.toggle('review-btn-primary', !state.commentMode);
-    setButtonContent(
-      btn,
-      state.commentMode ? 'x' : 'plus',
-      state.commentMode ? 'Cancel' : 'Add comment'
-    );
-    btn.title = state.commentMode
+    if (!btn) return;
+    document.body.classList.toggle('review-comment-mode', on && !state.shellHost);
+    btn.classList.toggle('review-btn-active', on);
+    btn.classList.toggle('review-btn-primary', !on);
+    setButtonContent(btn, on ? 'x' : 'plus', on ? 'Cancel' : 'Add comment');
+    btn.title = on
       ? 'Cancel commenting'
       : 'Click anywhere on the page to leave a comment';
+  }
+
+  function applyCommentMode(on) {
+    paintCommentModeButton(on);
 
     let shield = document.getElementById('review-click-shield');
-    if (state.commentMode) {
+    if (on) {
       if (!shield) {
         shield = el('div', {
           class: 'review-click-shield',
@@ -1133,6 +1394,20 @@
       shield.remove();
       state.pendingPin = null;
       closeBubble();
+    }
+  }
+
+  function toggleCommentMode() {
+    if (state.shellHost) {
+      const next = !state.commentMode;
+      paintCommentModeButton(next);
+      postToPreview({ type: 'codelii-cmd', cmd: 'setCommentMode', value: next });
+      return;
+    }
+
+    applyCommentMode(!state.commentMode);
+    if (isEmbed) {
+      notifyShellHost({ type: 'codelii-sync', commentMode: state.commentMode });
     }
   }
 
@@ -1266,6 +1541,7 @@
           x: state.pendingPin.x,
           y: state.pendingPin.y,
           scrollY: state.pendingPin.scrollY,
+          device: state.device,
           tags,
         }),
       });
@@ -1291,6 +1567,7 @@
       renderPins();
       renderSidebar();
       renderNotificationBadge();
+      notifyShellHost({ type: 'codelii-sync', action: 'refresh', commentMode: state.commentMode });
     } catch (err) {
       alert(err.message || 'Failed to post comment');
       if (btn) {
@@ -1464,8 +1741,9 @@
 
   async function loadApprovals() {
     try {
+      const reviewPage = viewingPage();
       const res = await fetch(
-        withProject(`/api/approvals?page=${encodeURIComponent(page)}`),
+        withProject(`/api/approvals?page=${encodeURIComponent(reviewPage)}`),
         { headers: ReviewAuth.headers() }
       );
       if (!res.ok) return;
@@ -1493,6 +1771,7 @@
 
   async function togglePageApproval() {
     const btn = document.getElementById('review-approve-btn');
+    const reviewPage = viewingPage();
     if (state.pageApproval) {
       if (!isOwner) {
         showPromptToast(`Already approved by ${state.pageApproval.approvedByName}`);
@@ -1502,7 +1781,7 @@
       if (btn) btn.disabled = true;
       try {
         const res = await fetch(
-          withProject(`/api/approvals?page=${encodeURIComponent(page)}`),
+          withProject(`/api/approvals?page=${encodeURIComponent(reviewPage)}`),
           { method: 'DELETE', headers: ReviewAuth.headers() }
         );
         const data = await res.json().catch(() => ({}));
@@ -1519,7 +1798,7 @@
       return;
     }
 
-    if (!confirm(`Approve “${formatPage(page)}”? This records your name and the time for the agency.`)) {
+    if (!confirm(`Approve “${formatPage(reviewPage)}”? This records your name and the time for the agency.`)) {
       return;
     }
     if (btn) btn.disabled = true;
@@ -1527,7 +1806,7 @@
       const res = await fetch('/api/approvals', {
         method: 'POST',
         headers: ReviewAuth.headers(),
-        body: JSON.stringify({ projectId, page }),
+        body: JSON.stringify({ projectId, page: reviewPage }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Could not approve');
@@ -1543,11 +1822,15 @@
   }
 
   function pageComments() {
-    return state.comments.filter((c) => samePage(c.page, page) && !c.resolved);
+    return state.comments.filter(
+      (c) => samePage(c.page, viewingPage()) && !c.resolved && commentDevice(c) === state.device
+    );
   }
 
   function renderPins() {
+    if (state.shellHost) return;
     const layer = document.getElementById('review-pins-layer');
+    if (!layer) return;
     const remote = document.getElementById('review-remote-cursor');
     if (remote) remote.remove();
     layer.innerHTML = '';
@@ -2511,7 +2794,7 @@
         el('span', {}, [
           state.sidebarTab === 'resolved'
             ? 'Resolve a thread to archive it here.'
-            : 'Use Add comment, then click anywhere on the page.',
+            : `No ${DEVICE_LABELS[state.device].toLowerCase()} comments yet. Switch preview or add one here.`,
         ]),
       ]));
       updateSidebarActionButtons(openItems.length);
@@ -2525,6 +2808,10 @@
       appendFormattedCommentText(textEl, c.text, c.tags, true);
 
       const badges = el('div', { class: 'review-sidebar-item-badges' });
+      badges.appendChild(el('span', { class: 'review-sidebar-chip review-sidebar-chip-device' }, [
+        icon(DEVICE_ICONS[commentDevice(c)], 12),
+        el('span', {}, [DEVICE_LABELS[commentDevice(c)]]),
+      ]));
       if (c.hidden) {
         badges.appendChild(el('span', { class: 'review-sidebar-chip review-sidebar-chip-hidden' }, [
           icon('eyeSlash', 12),
@@ -3156,20 +3443,31 @@
   }
 
   function navigateToComment(comment) {
-    if (comment.resolved) {
-      if (!samePage(comment.page, page)) {
-        window.location.href = pageHref(comment.page, `comment=${comment.id}&resolved=1`);
+    const needsDeviceSwitch = commentDevice(comment) !== state.device;
+    const needsPageSwitch = !samePage(comment.page, viewingPage());
+
+    if (state.shellHost) {
+      if (needsDeviceSwitch) {
+        goToCommentHref(commentHref(comment));
         return;
       }
+      state.highlightId = comment.id;
+      renderSidebar();
+      postToPreview({ type: 'codelii-cmd', cmd: 'navigateToComment', commentId: comment.id });
+      return;
+    }
+
+    if (needsDeviceSwitch || needsPageSwitch) {
+      goToCommentHref(commentHref(comment));
+      return;
+    }
+
+    if (comment.resolved) {
       openViewBubble(comment, false, true);
       return;
     }
 
-    if (samePage(comment.page, page)) {
-      scrollToComment(comment);
-    } else {
-      window.location.href = pageHref(comment.page, `comment=${comment.id}`);
-    }
+    scrollToComment(comment);
   }
 
   function scrollToComment(comment) {
@@ -3220,6 +3518,12 @@
 
     const comment = state.comments.find((c) => c.id === id);
     if (!comment) return;
+
+    // Open the comment in the viewport it was left on.
+    if (commentDevice(comment) !== state.device) {
+      goToCommentHref(commentHref(comment));
+      return;
+    }
 
     if (comment.resolved || params.get('resolved') === '1') {
       state.sidebarTab = 'resolved';

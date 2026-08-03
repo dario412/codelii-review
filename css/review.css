@@ -2279,3 +2279,153 @@ body.review-comment-mode .review-bubble * { cursor: auto !important; }
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* ---- Device preview (desktop / tablet / mobile) ---- */
+.review-device-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.review-device-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.review-device-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.review-device-btn.is-active {
+  color: var(--brand-bg, #002B2B);
+  background: var(--brand-accent, #B8FF54);
+}
+
+.review-device-btn .review-icon {
+  display: inline-flex;
+}
+
+/* Shell host: toolbar + sidebar stay full-bleed; only the site is framed. */
+body.review-device-shell {
+  overflow: hidden;
+  background: #071c1b;
+}
+
+body.review-device-shell.review-active {
+  /* Keep chrome offsets; the real site lives in the iframe. */
+  min-height: 100vh;
+}
+
+.review-device-shell-stage {
+  position: fixed;
+  top: var(--review-bar-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  padding: 16px 18px 20px;
+  box-sizing: border-box;
+  overflow: auto;
+  background:
+    radial-gradient(ellipse at top, rgba(184, 255, 84, 0.06), transparent 55%),
+    #071c1b;
+  z-index: 1;
+}
+
+body.review-sidebar-open .review-device-shell-stage {
+  left: var(--review-sidebar-w);
+}
+
+.review-device-frame {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  height: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #111;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+}
+
+.review-device-frame-mobile {
+  border-radius: 28px;
+}
+
+.review-device-frame-chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.review-device-frame-size {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+}
+
+.review-device-iframe {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+  min-height: 0;
+}
+
+/* Embed: website + pins only — no review chrome inside the frame. */
+html.review-embed body.review-active,
+body.review-embed-content.review-active {
+  padding-top: 0 !important;
+  padding-left: 0 !important;
+  min-width: 0;
+}
+
+html.review-embed .review-toolbar,
+html.review-embed .review-sidebar,
+html.review-embed .review-selection-bar,
+body.review-embed-content .review-toolbar,
+body.review-embed-content .review-sidebar {
+  display: none !important;
+}
+
+.review-sidebar-chip-device {
+  opacity: 0.9;
+}
+
+@media (max-width: 720px) {
+  .review-device-btn span:not(.review-icon) {
+    display: none;
+  }
+  .review-device-shell-stage {
+    padding: 10px;
+  }
+  body.review-sidebar-open .review-device-shell-stage {
+    left: 0;
+  }
+}

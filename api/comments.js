@@ -13,6 +13,13 @@ import { pushActivity } from './lib/activity.js';
 import { notifyReviewEvent } from './lib/notify.js';
 import { json, corsOptions } from './lib/http.js';
 
+const REVIEW_DEVICES = new Set(['desktop', 'tablet', 'mobile']);
+
+function normalizeDevice(value) {
+  const d = String(value || 'desktop').toLowerCase();
+  return REVIEW_DEVICES.has(d) ? d : 'desktop';
+}
+
 export async function OPTIONS() {
   return corsOptions();
 }
@@ -119,12 +126,13 @@ export async function POST(request) {
     x,
     y,
     scrollY,
+    device: normalizeDevice(body.device),
     text,
     authorId: user.id,
     authorEmail: user.email,
     authorName: user.name,
     tags: tags.map((t) => ({
-      email: (t.email || '').toLowerCase(),
+      email: (t.email || '').trim().toLowerCase(),
       name: t.name || t.email || '',
     })),
     replies: [],

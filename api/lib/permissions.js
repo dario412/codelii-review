@@ -12,7 +12,10 @@
  * or to "*" to open the tools to every project owner once beta is over.
  */
 
-const DEFAULT_ALLOWED_EMAILS = ['dario@positivestudio.co'];
+const DEFAULT_ALLOWED_EMAILS = [
+  'dario@positivestudio.co',
+  'ani@positivestudio.co',
+];
 
 function allowedEmails() {
   const raw = (process.env.CURSOR_TOOLS_EMAILS || '').trim();
