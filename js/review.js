@@ -104,6 +104,7 @@
     desktop: 'M208,40H48A24,24,0,0,0,24,64V176a24,24,0,0,0,24,24H88v16H72a12,12,0,0,0,0,24H184a12,12,0,0,0,0-24H168V200h40a24,24,0,0,0,24-24V64A24,24,0,0,0,208,40ZM208,176H48V64H208Z',
     deviceTablet: 'M192,24H64A24,24,0,0,0,40,48V208a24,24,0,0,0,24,24H192a24,24,0,0,0,24-24V48A24,24,0,0,0,192,24Zm0,184H64V48H192Z',
     deviceMobile: 'M176,16H80A24,24,0,0,0,56,40V216a24,24,0,0,0,24,24h96a24,24,0,0,0,24-24V40A24,24,0,0,0,176,16Zm0,200H80V40h96Z',
+    link: 'M137.54,186.36a8,8,0,0,1,0,11.31l-9.94,10A56,56,0,0,1,48.38,128.4L72.5,104.28A56,56,0,0,1,149.31,103a8,8,0,1,1-10.64,11.92,40,40,0,0,0-54.85.77L59.69,139.94a40,40,0,0,0,56.56,56.56l9.94-9.94A8,8,0,0,1,137.54,186.36Zm70.08-138a56.08,56.08,0,0,0-79.22,0l-9.94,9.94a8,8,0,0,0,11.31,11.32l9.94-9.94a40,40,0,0,1,56.56,56.56L172.05,140.4a40,40,0,0,1-54.85.77,8,8,0,1,0-10.64,11.94,56,56,0,0,0,76.81-.89l24.12-24.11A56.08,56.08,0,0,0,207.62,48.38Z',
   };
 
   function icon(name, size = 17) {
@@ -367,6 +368,194 @@
     ])));
   }
 
+  function normalizeHost(host) {
+    return String(host || '').toLowerCase().replace(/^www\./, '');
+  }
+
+  function normalizeJumpPath(rawPath) {
+    let path = String(rawPath || '').trim();
+    if (!path) return null;
+
+    // Allow pasting review proxy paths: /p/<id>/about or /s/<id>/pricing
+    const prefix = viewPrefix.replace(/\/$/, '');
+    if (prefix && (path === prefix || path.startsWith(`${prefix}/`))) {
+      path = path.slice(prefix.length) || '/';
+    }
+
+    path = path.replace(/^\//, '');
+    if (!path) return 'index.html';
+    if (path.endsWith('/')) path += 'index.html';
+    return path;
+  }
+
+  /** Parse a path or same-site URL into a review page path. */
+  function parsePageJumpInput(raw) {
+    const input = String(raw || '').trim();
+    if (!input) return { error: 'Enter a page path or URL.' };
+
+    if (/^https?:\/\//i.test(input)) {
+      let url;
+      try {
+        url = new URL(input);
+      } catch {
+        return { error: 'That URL looks invalid.' };
+      }
+
+      // Full URL on the live site (baseUrl).
+      if (project.baseUrl) {
+        try {
+          const base = new URL(project.baseUrl);
+          if (normalizeHost(url.host) === normalizeHost(base.host)) {
+            const path = normalizeJumpPath(url.pathname);
+            return path ? { path } : { error: 'Could not read that page path.' };
+          }
+        } catch {
+          /* ignore bad baseUrl */
+        }
+      }
+
+      // Full URL already on the review host.
+      if (url.origin === window.location.origin) {
+        const path = normalizeJumpPath(url.pathname);
+        return path ? { path } : { error: 'Could not read that page path.' };
+      }
+
+      return { error: 'Use a path or URL from this website only.' };
+    }
+
+    const path = normalizeJumpPath(input);
+    if (!path) return { error: 'Enter a page path or URL.' };
+    return { path };
+  }
+
+  function pageJumpHref(pagePath) {
+    const params = new URLSearchParams();
+    if (state.device !== 'desktop') params.set('device', state.device);
+    return pageHref(pagePath, params.toString());
+  }
+
+  function buildPageJump() {
+    let baseHint = 'Enter a path like /about or /pricing/draft';
+    if (project.baseUrl) {
+      try {
+        baseHint = `Same site as ${new URL(project.baseUrl).host} — path or full URL`;
+      } catch {
+        /* keep default */
+      }
+    }
+
+    return el('div', { class: 'review-page-jump', id: 'review-page-jump' }, [
+      el('button', {
+        type: 'button',
+        class: 'review-btn review-btn-toolbar review-btn-quiet',
+        id: 'review-page-jump-btn',
+        title: 'Open any page on this site by path or URL',
+        'aria-expanded': 'false',
+        'aria-controls': 'review-page-jump-panel',
+        onclick: togglePageJump,
+      }, btnContent('link', 'Open page')),
+      el('div', {
+        class: 'review-page-jump-panel',
+        id: 'review-page-jump-panel',
+        role: 'dialog',
+        'aria-label': 'Open a page',
+        hidden: true,
+      }, [
+        el('label', {
+          class: 'review-page-jump-label',
+          for: 'review-page-jump-input',
+        }, ['Go to page']),
+        el('div', { class: 'review-page-jump-row' }, [
+          el('input', {
+            type: 'text',
+            id: 'review-page-jump-input',
+            class: 'review-page-jump-input',
+            placeholder: `/${viewingPage()}`,
+            autocomplete: 'off',
+            spellcheck: 'false',
+            onkeydown: (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                submitPageJump();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closePageJump();
+              }
+            },
+          }),
+          el('button', {
+            type: 'button',
+            class: 'review-btn review-btn-primary review-page-jump-go',
+            onclick: submitPageJump,
+          }, ['Go']),
+        ]),
+        el('p', { class: 'review-page-jump-hint' }, [baseHint]),
+        el('p', { class: 'review-page-jump-error', id: 'review-page-jump-error', hidden: true }),
+      ]),
+    ]);
+  }
+
+  function togglePageJump() {
+    const panel = document.getElementById('review-page-jump-panel');
+    if (!panel) return;
+    if (panel.hidden) openPageJump();
+    else closePageJump();
+  }
+
+  function openPageJump() {
+    const panel = document.getElementById('review-page-jump-panel');
+    const btn = document.getElementById('review-page-jump-btn');
+    const input = document.getElementById('review-page-jump-input');
+    const err = document.getElementById('review-page-jump-error');
+    if (!panel) return;
+    closeNotifications();
+    panel.hidden = false;
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+    if (err) {
+      err.hidden = true;
+      err.textContent = '';
+    }
+    if (input) {
+      input.value = `/${viewingPage()}`;
+      input.placeholder = `/${viewingPage()}`;
+      setTimeout(() => {
+        input.focus();
+        input.select();
+      }, 0);
+    }
+  }
+
+  function closePageJump() {
+    const panel = document.getElementById('review-page-jump-panel');
+    const btn = document.getElementById('review-page-jump-btn');
+    if (panel) panel.hidden = true;
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+  }
+
+  function submitPageJump() {
+    const input = document.getElementById('review-page-jump-input');
+    const err = document.getElementById('review-page-jump-error');
+    const parsed = parsePageJumpInput(input?.value || '');
+    if (parsed.error) {
+      if (err) {
+        err.hidden = false;
+        err.textContent = parsed.error;
+      }
+      input?.focus();
+      return;
+    }
+
+    const href = pageJumpHref(parsed.path);
+    // Already on this page — just close.
+    if (samePage(parsed.path, viewingPage()) && !state.shellHost) {
+      closePageJump();
+      showPromptToast(`Already on /${parsed.path}`);
+      return;
+    }
+
+    goToCommentHref(href);
+  }
+
   function mountDevicePreview() {
     const width = DEVICE_WIDTHS[state.device] || 390;
     document.body.classList.add('review-device-shell');
@@ -609,6 +798,7 @@
             ]),
           ]),
           buildDeviceSwitcher(),
+          buildPageJump(),
           el('div', { class: 'review-online-wrap', id: 'review-online-wrap' }),
         ]),
         el('div', { class: 'review-toolbar-right' }, [
@@ -745,6 +935,7 @@
         closeCursorFixModal();
         closeBubble();
         closeNotifications();
+        closePageJump();
         hideOnlineTip();
         if (state.followingUserId) stopFollowing();
         else if (state.selectedIds.size) clearSelection();
@@ -753,8 +944,10 @@
     });
 
     document.addEventListener('click', (e) => {
-      const wrap = document.getElementById('review-notifications-wrap');
-      if (wrap && !wrap.contains(e.target)) closeNotifications();
+      const notif = document.getElementById('review-notifications-wrap');
+      if (notif && !notif.contains(e.target)) closeNotifications();
+      const jump = document.getElementById('review-page-jump');
+      if (jump && !jump.contains(e.target)) closePageJump();
     });
   }
 
