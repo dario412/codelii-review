@@ -24,6 +24,65 @@ export function proxyPathBootstrap(prefix) {
 var PREFIX=${P};
 window.__CODELII_REVIEW__=true;
 
+/* Always show Codelii Review favicons — never the project site's. */
+(function forceAppFavicon(){
+  var APP={
+    "/favicon.ico":1,
+    "/favicon.svg":1,
+    "/favicon-16.png":1,
+    "/favicon-32.png":1,
+    "/apple-touch-icon.png":1,
+    "/icon-192.png":1,
+    "/icon-512.png":1
+  };
+  function isAppHref(href){
+    try{
+      var u=new URL(href,location.origin);
+      return !!APP[u.pathname];
+    }catch(e){return false;}
+  }
+  function isIconLink(el){
+    if(!el||el.tagName!=="LINK")return false;
+    var rel=(el.getAttribute("rel")||"").toLowerCase();
+    return /(^|\\s)(icon|shortcut icon|apple-touch-icon|mask-icon|manifest)(\\s|$)/.test(rel);
+  }
+  function ensureAppIcons(){
+    var head=document.head||document.documentElement;
+    if(!head)return;
+    if(!document.querySelector('link[rel="icon"][href="/favicon.svg"]')){
+      var svg=document.createElement("link");
+      svg.rel="icon";
+      svg.type="image/svg+xml";
+      svg.href="/favicon.svg";
+      head.appendChild(svg);
+    }
+    if(!document.querySelector('link[rel="icon"][href="/favicon.ico"]')){
+      var ico=document.createElement("link");
+      ico.rel="icon";
+      ico.href="/favicon.ico";
+      ico.sizes="any";
+      head.appendChild(ico);
+    }
+    if(!document.querySelector('link[rel="apple-touch-icon"][href="/apple-touch-icon.png"]')){
+      var apple=document.createElement("link");
+      apple.rel="apple-touch-icon";
+      apple.href="/apple-touch-icon.png";
+      head.appendChild(apple);
+    }
+  }
+  function scrub(){
+    document.querySelectorAll("link[rel]").forEach(function(l){
+      if(!isIconLink(l))return;
+      if(!isAppHref(l.getAttribute("href")||""))l.remove();
+    });
+    ensureAppIcons();
+  }
+  try{
+    scrub();
+    new MutationObserver(scrub).observe(document.documentElement,{childList:true,subtree:true});
+  }catch(e){}
+})();
+
 /* Reduced-motion + IO first so later site modules see the patches even if rewrite throws */
 (function scrollIntoViewAssist(){
   try{
@@ -226,7 +285,8 @@ function rewrite(url){
     var path=abs.pathname;
     if(path===PREFIX||path.indexOf(PREFIX+"/")===0)return url;
     if(/^\\/(api|css|js)(\\/|$)/.test(path))return url;
-    if(/^\\/(login|dashboard|integrations|join|favicon\\.ico|apple-touch|site\\.webmanifest)/.test(path))return url;
+    if(/^\\/(login|dashboard|integrations|join)(\\/|$)/.test(path))return url;
+    if(/^\\/(favicon(\\.(ico|svg)|-\\d+\\.png)|apple-touch-icon\\.png|icon-\\d+\\.png|site\\.webmanifest)(\\/|$)/.test(path))return url;
     return PREFIX+path+abs.search+abs.hash;
   }catch(e){return url;}
 }
@@ -360,7 +420,11 @@ function rewriteUrl(href, projectId, baseOrigin, mode) {
     href.startsWith('/js/') ||
     href.startsWith('/api/') ||
     href.startsWith('/login') ||
-    href.startsWith('/dashboard')
+    href.startsWith('/dashboard') ||
+    href.startsWith('/favicon') ||
+    href.startsWith('/apple-touch-icon') ||
+    href.startsWith('/icon-') ||
+    href.startsWith('/site.webmanifest')
   ) {
     return href;
   }
@@ -415,6 +479,12 @@ export async function rewriteHtml(html, project, viewer) {
   // Remove existing base tags — we set ours after rewrites
   out = out.replace(/<base[^>]*>/gi, '');
 
+  // Force Codelii Review favicons (never the project site's icons / manifest)
+  out = out.replace(
+    /<link\b[^>]*\brel=["'][^"']*(?:icon|apple-touch-icon|shortcut icon|mask-icon|manifest)[^"']*["'][^>]*>/gi,
+    ''
+  );
+
   // Strip subresource integrity — rewritten same-origin assets would fail the hash
   out = out.replace(/\sintegrity=["'][^"']*["']/gi, '');
 
@@ -463,8 +533,15 @@ export async function rewriteHtml(html, project, viewer) {
     return `url(${quote}${next}${quote})`;
   });
 
-  // Path bootstrap + <base> first in <head> so chunk loads resolve under /p|/s
-  const headInject = `${proxyPathBootstrap(prefix)}<base href="${prefix}/">`;
+  // Path bootstrap + app favicons + <base> first in <head>
+  const favicons = [
+    '<link rel="icon" href="/favicon.ico" sizes="any">',
+    '<link rel="icon" type="image/svg+xml" href="/favicon.svg">',
+    '<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">',
+    '<link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">',
+    '<link rel="apple-touch-icon" href="/apple-touch-icon.png">',
+  ].join('');
+  const headInject = `${proxyPathBootstrap(prefix)}${favicons}<base href="${prefix}/">`;
   if (/<head[^>]*>/i.test(out)) {
     out = out.replace(/<head([^>]*)>/i, `<head$1>${headInject}`);
   } else {

@@ -45,7 +45,24 @@
   const DEVICE_ICONS = { desktop: 'desktop', tablet: 'deviceTablet', mobile: 'deviceMobile' };
 
   const urlParams = new URLSearchParams(window.location.search);
-  const isEmbed = urlParams.get('codelii_embed') === '1';
+
+  function isReviewEmbedFrame() {
+    if (urlParams.get('codelii_embed') === '1') return true;
+    // If the device shell already framed us, never become another shell —
+    // losing ?codelii_embed on in-frame navigations caused nested reload loops.
+    try {
+      if (window.parent && window.parent !== window) {
+        return Boolean(
+          window.parent.document?.body?.classList?.contains('review-device-shell')
+        );
+      }
+    } catch (_) {
+      /* cross-origin parent */
+    }
+    return false;
+  }
+
+  const isEmbed = isReviewEmbedFrame();
 
   function normalizeDevice(value) {
     const d = String(value || 'desktop').toLowerCase();
@@ -57,8 +74,13 @@
   }
 
   function readInitialDevice() {
-    const fromUrl = normalizeDevice(urlParams.get('device'));
-    if (urlParams.has('device')) return fromUrl;
+    if (urlParams.has('device')) return normalizeDevice(urlParams.get('device'));
+    try {
+      if (window.parent && window.parent !== window) {
+        const parentDevice = window.parent.document?.documentElement?.dataset?.reviewDevice;
+        if (parentDevice) return normalizeDevice(parentDevice);
+      }
+    } catch (_) {}
     try {
       const stored = sessionStorage.getItem('codelii_device');
       if (stored) return normalizeDevice(stored);
@@ -201,7 +223,11 @@
 
   async function init() {
     document.documentElement.dataset.reviewDevice = state.device;
-    if (isEmbed) document.documentElement.classList.add('review-embed');
+    if (isEmbed) {
+      document.documentElement.classList.add('review-embed');
+      ensureEmbedQueryParams();
+      patchHistoryForEmbed();
+    }
 
     // Parent shell: full toolbar + sidebar stay outside; only the site is framed.
     if (!isEmbed && state.device !== 'desktop') {
@@ -218,6 +244,7 @@
       renderSidebar();
       renderApproveButton();
       renderNotificationBadge();
+      paintPageBar(page);
       startLiveSync();
       document.addEventListener('visibilitychange', () => {
         startLiveSync();
@@ -248,6 +275,7 @@
       );
       window.addEventListener('message', onEmbedHostCommand);
     }
+    if (!isEmbed) paintPageBar(page);
     await loadUsers();
     await loadComments();
     await loadApprovals();
@@ -278,6 +306,49 @@
     });
   }
 
+  /** Keep embed + device on the framed URL so SPA navigations / redirects don't nest shells. */
+  function ensureEmbedQueryParams() {
+    const url = new URL(window.location.href);
+    let changed = false;
+    if (url.searchParams.get('codelii_embed') !== '1') {
+      url.searchParams.set('codelii_embed', '1');
+      changed = true;
+    }
+    if (state.device !== 'desktop') {
+      if (url.searchParams.get('device') !== state.device) {
+        url.searchParams.set('device', state.device);
+        changed = true;
+      }
+    }
+    if (changed) {
+      history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    }
+  }
+
+  function patchHistoryForEmbed() {
+    if (state._historyPatched) return;
+    state._historyPatched = true;
+    ['pushState', 'replaceState'].forEach((method) => {
+      const original = history[method].bind(history);
+      history[method] = function patchedHistory(data, unused, url) {
+        if (url != null && url !== '') {
+          try {
+            const next = new URL(String(url), window.location.href);
+            if (next.origin === window.location.origin) {
+              next.searchParams.set('codelii_embed', '1');
+              if (state.device !== 'desktop') next.searchParams.set('device', state.device);
+              else next.searchParams.delete('device');
+              url = `${next.pathname}${next.search}${next.hash}`;
+            }
+          } catch (_) {
+            /* keep original url */
+          }
+        }
+        return original(data, unused, url);
+      };
+    });
+  }
+
   function onShellHostMessage(event) {
     if (event.origin !== window.location.origin) return;
     const data = event.data;
@@ -295,11 +366,12 @@
       const nextUrl = new URL(window.location.href);
       // Keep the parent URL aligned with the framed page for refresh / sharing.
       const clean = String(data.page).replace(/^\//, '');
-      const path = `${viewPrefix}/${clean}`.replace(/\/+/g, '/');
+      const path = `${viewPrefix}/${clean}`.replace(/\/{2,}/g, '/');
       if (nextUrl.pathname !== path) {
         nextUrl.pathname = path;
         history.replaceState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
       }
+      paintPageBar(data.page);
       loadApprovals();
       renderApproveButton();
     }
@@ -434,102 +506,64 @@
     return pageHref(pagePath, params.toString());
   }
 
+  function pageBarDisplay(pagePath) {
+    const clean = String(pagePath || 'index.html').replace(/^\//, '');
+    return `/${clean}`;
+  }
+
   function buildPageJump() {
-    let baseHint = 'Enter a path like /about or /pricing/draft';
+    let hint = 'Path or full URL on this site — Enter to open';
     if (project.baseUrl) {
       try {
-        baseHint = `Same site as ${new URL(project.baseUrl).host} — path or full URL`;
+        hint = `${new URL(project.baseUrl).host} path or URL — Enter to open`;
       } catch {
         /* keep default */
       }
     }
 
-    return el('div', { class: 'review-page-jump', id: 'review-page-jump' }, [
-      el('button', {
-        type: 'button',
-        class: 'review-btn review-btn-toolbar review-btn-quiet',
-        id: 'review-page-jump-btn',
-        title: 'Open any page on this site by path or URL',
-        'aria-expanded': 'false',
-        'aria-controls': 'review-page-jump-panel',
-        onclick: togglePageJump,
-      }, btnContent('link', 'Open page')),
-      el('div', {
-        class: 'review-page-jump-panel',
-        id: 'review-page-jump-panel',
-        role: 'dialog',
-        'aria-label': 'Open a page',
-        hidden: true,
-      }, [
-        el('label', {
-          class: 'review-page-jump-label',
-          for: 'review-page-jump-input',
-        }, ['Go to page']),
-        el('div', { class: 'review-page-jump-row' }, [
-          el('input', {
-            type: 'text',
-            id: 'review-page-jump-input',
-            class: 'review-page-jump-input',
-            placeholder: `/${viewingPage()}`,
-            autocomplete: 'off',
-            spellcheck: 'false',
-            onkeydown: (e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                submitPageJump();
-              } else if (e.key === 'Escape') {
-                e.preventDefault();
-                closePageJump();
-              }
-            },
-          }),
-          el('button', {
-            type: 'button',
-            class: 'review-btn review-btn-primary review-page-jump-go',
-            onclick: submitPageJump,
-          }, ['Go']),
-        ]),
-        el('p', { class: 'review-page-jump-hint' }, [baseHint]),
-        el('p', { class: 'review-page-jump-error', id: 'review-page-jump-error', hidden: true }),
-      ]),
+    return el('div', {
+      class: 'review-page-bar',
+      id: 'review-page-jump',
+      title: hint,
+    }, [
+      icon('link', 14),
+      el('input', {
+        type: 'text',
+        id: 'review-page-jump-input',
+        class: 'review-page-bar-input',
+        value: pageBarDisplay(viewingPage()),
+        placeholder: '/index.html',
+        autocomplete: 'off',
+        spellcheck: 'false',
+        'aria-label': 'Current page path',
+        onkeydown: (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submitPageJump();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            paintPageBar(viewingPage());
+            e.currentTarget.blur();
+          }
+        },
+        onfocus: (e) => {
+          e.currentTarget.select();
+        },
+      }),
+      el('span', { class: 'review-page-bar-error', id: 'review-page-jump-error', hidden: true }),
     ]);
   }
 
-  function togglePageJump() {
-    const panel = document.getElementById('review-page-jump-panel');
-    if (!panel) return;
-    if (panel.hidden) openPageJump();
-    else closePageJump();
-  }
-
-  function openPageJump() {
-    const panel = document.getElementById('review-page-jump-panel');
-    const btn = document.getElementById('review-page-jump-btn');
+  function paintPageBar(pagePath) {
     const input = document.getElementById('review-page-jump-input');
     const err = document.getElementById('review-page-jump-error');
-    if (!panel) return;
-    closeNotifications();
-    panel.hidden = false;
-    if (btn) btn.setAttribute('aria-expanded', 'true');
+    if (input && document.activeElement !== input) {
+      input.value = pageBarDisplay(pagePath || viewingPage());
+    }
     if (err) {
       err.hidden = true;
       err.textContent = '';
     }
-    if (input) {
-      input.value = `/${viewingPage()}`;
-      input.placeholder = `/${viewingPage()}`;
-      setTimeout(() => {
-        input.focus();
-        input.select();
-      }, 0);
-    }
-  }
-
-  function closePageJump() {
-    const panel = document.getElementById('review-page-jump-panel');
-    const btn = document.getElementById('review-page-jump-btn');
-    if (panel) panel.hidden = true;
-    if (btn) btn.setAttribute('aria-expanded', 'false');
   }
 
   function submitPageJump() {
@@ -546,9 +580,8 @@
     }
 
     const href = pageJumpHref(parsed.path);
-    // Already on this page — just close.
     if (samePage(parsed.path, viewingPage()) && !state.shellHost) {
-      closePageJump();
+      paintPageBar(parsed.path);
       showPromptToast(`Already on /${parsed.path}`);
       return;
     }
@@ -935,7 +968,6 @@
         closeCursorFixModal();
         closeBubble();
         closeNotifications();
-        closePageJump();
         hideOnlineTip();
         if (state.followingUserId) stopFollowing();
         else if (state.selectedIds.size) clearSelection();
@@ -946,8 +978,6 @@
     document.addEventListener('click', (e) => {
       const notif = document.getElementById('review-notifications-wrap');
       if (notif && !notif.contains(e.target)) closeNotifications();
-      const jump = document.getElementById('review-page-jump');
-      if (jump && !jump.contains(e.target)) closePageJump();
     });
   }
 
