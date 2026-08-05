@@ -198,3 +198,122 @@ export function publicBilling(user) {
     reason: entitled ? null : blockedReason(user),
   };
 }
+
+const FREEMAIL = new Set([
+  'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.uk', 'hotmail.com',
+  'outlook.com', 'live.com', 'msn.com', 'icloud.com', 'me.com', 'mac.com',
+  'aol.com', 'proton.me', 'protonmail.com', 'gmx.com', 'mail.com',
+]);
+
+function emailDomain(email) {
+  const at = String(email || '').toLowerCase().lastIndexOf('@');
+  if (at < 0) return '';
+  return String(email).slice(at + 1).trim().toLowerCase();
+}
+
+/**
+ * Other accounts that share this user's company email domain.
+ * Skips freemail domains so we never leak unrelated Gmail users.
+ */
+export function domainTeammates(core, user) {
+  const domain = emailDomain(user?.email);
+  if (!domain || FREEMAIL.has(domain)) {
+    return [{
+      id: user.id,
+      name: user.name || '',
+      email: user.email || '',
+      role: 'Owner',
+      self: true,
+    }];
+  }
+
+  const peers = (core.users || [])
+    .filter((u) => u && u.guest !== true && emailDomain(u.email) === domain)
+    .map((u) => ({
+      id: u.id,
+      name: u.name || '',
+      email: u.email || '',
+      role: u.id === user.id ? 'Owner' : (isAgencyEmail(u.email) ? 'Agency' : 'Member'),
+      self: u.id === user.id,
+    }))
+    .sort((a, b) => {
+      if (a.self !== b.self) return a.self ? -1 : 1;
+      return String(a.name || a.email).localeCompare(String(b.name || b.email));
+    });
+
+  return peers.length
+    ? peers
+    : [{
+      id: user.id,
+      name: user.name || '',
+      email: user.email || '',
+      role: 'Owner',
+      self: true,
+    }];
+}
+
+/**
+ * Live Stripe display fields for the Account settings page.
+ * Failures return empty summary so the page still renders from cached billing.
+ */
+export async function stripeAccountSummary(user) {
+  const empty = {
+    billingEmail: user?.email || null,
+    card: null,
+    upcomingInvoice: null,
+  };
+  const { customerId } = billingOf(user);
+  if (!customerId) return empty;
+
+  try {
+    const customer = await stripe().customers.retrieve(customerId);
+    if (customer.deleted) return empty;
+
+    const billingEmail = customer.email || user?.email || null;
+    let card = null;
+
+    const defaultPm = customer.invoice_settings?.default_payment_method;
+    let pmId = typeof defaultPm === 'string' ? defaultPm : defaultPm?.id || null;
+    if (!pmId) {
+      const list = await stripe().paymentMethods.list({
+        customer: customerId,
+        type: 'card',
+        limit: 1,
+      });
+      pmId = list.data[0]?.id || null;
+      if (list.data[0]?.card) {
+        card = {
+          brand: list.data[0].card.brand || 'card',
+          last4: list.data[0].card.last4 || '',
+        };
+      }
+    }
+    if (pmId && !card) {
+      const pm = await stripe().paymentMethods.retrieve(pmId);
+      if (pm.card) {
+        card = { brand: pm.card.brand || 'card', last4: pm.card.last4 || '' };
+      }
+    }
+
+    let upcomingInvoice = null;
+    try {
+      const upcoming = await stripe().invoices.createPreview({ customer: customerId });
+      if (upcoming && typeof upcoming.amount_due === 'number') {
+        upcomingInvoice = {
+          amountDue: upcoming.amount_due,
+          currency: upcoming.currency || 'usd',
+          periodStart: toIso(upcoming.period_start),
+          periodEnd: toIso(upcoming.period_end),
+          nextPaymentAttempt: toIso(upcoming.next_payment_attempt),
+        };
+      }
+    } catch {
+      /* no upcoming invoice is normal for canceled / empty customers */
+    }
+
+    return { billingEmail, card, upcomingInvoice };
+  } catch (err) {
+    console.error('[billing summary]', err.message);
+    return empty;
+  }
+}

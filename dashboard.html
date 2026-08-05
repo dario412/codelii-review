@@ -8,86 +8,102 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
-<meta name="theme-color" content="#002B2B">
+<meta name="theme-color" content="#F6F7FB">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/app.css">
 <script src="/js/auth-guard.js"></script>
 <script src="/js/icons.js"></script>
+<script src="/js/app-shell.js"></script>
 </head>
 <body class="app-body">
-<header class="site-nav app-nav">
-  <div class="nav-inner">
-    <div class="nav-left">
-      <a class="brand" href="/dashboard.html">Codelii<span> Review</span></a>
-      <nav class="app-links" aria-label="App">
-        <a href="/dashboard.html" aria-current="page">Projects</a>
-        <a href="/integrations.html" id="nav-integrations">Integrations</a>
-      </nav>
+<div class="app-shell">
+  <aside class="app-sidebar" aria-label="Workspace" id="app-sidebar">
+    <div class="app-sidebar-top">
+      <a class="app-sidebar-brand" href="/dashboard.html">
+        <span class="app-sidebar-mark" aria-hidden="true">C</span>
+        <span class="app-sidebar-brand-text">Codelii <em>Review</em></span>
+      </a>
+      <button class="app-sidebar-collapse" type="button" id="sidebar-collapse" aria-label="Collapse sidebar" title="Collapse sidebar"></button>
     </div>
-    <div class="dash-user" id="user-chip"></div>
-  </div>
-</header>
-
-<main class="dash-wrap">
-  <div class="billing-banner" id="billing-banner">
-    <span data-icon="warning" data-icon-size="18"></span>
-    <p id="billing-banner-text"></p>
-    <button class="btn btn-sm" type="button" id="billing-banner-action"><span data-label>Manage billing</span></button>
-  </div>
-
-  <div class="dash-header">
-    <div>
-      <h1>Projects</h1>
-      <p class="sub" id="dash-sub">Loading your workspace…</p>
+    <nav class="app-sidebar-nav" aria-label="App">
+      <a href="/dashboard.html" aria-current="page">
+        <span data-icon="folder" data-icon-size="18"></span>
+        <span class="app-sidebar-nav-label">Projects</span>
+      </a>
+      <a href="/integrations.html" id="nav-integrations">
+        <span data-icon="settings" data-icon-size="18"></span>
+        <span class="app-sidebar-nav-label">Integrations</span>
+      </a>
+    </nav>
+    <div class="app-sidebar-foot">
+      <div class="app-sidebar-plan" id="sidebar-plan" hidden></div>
+      <div class="dash-user" id="user-chip"></div>
     </div>
-    <div class="dash-tools">
-      <div class="search-field">
-        <span data-icon="search" data-icon-size="16"></span>
-        <input id="project-search" type="search" placeholder="Search projects" aria-label="Search projects" autocomplete="off">
+  </aside>
+
+  <div class="app-main">
+    <main class="dash-wrap">
+      <div class="billing-banner" id="billing-banner">
+        <span data-icon="warning" data-icon-size="18"></span>
+        <p id="billing-banner-text"></p>
+        <button class="btn btn-sm" type="button" id="billing-banner-action"><span data-label>Manage billing</span></button>
       </div>
-      <button class="btn" id="btn-new-client" data-icon="folder" data-icon-size="16" type="button">
-        <span data-label>New client</span>
-      </button>
-      <button class="btn btn-accent" id="btn-new" data-icon="plus" data-icon-size="16">
-        <span data-label>New project</span>
-      </button>
-    </div>
+
+      <div class="dash-header">
+        <div>
+          <h1>Projects</h1>
+          <p class="sub" id="dash-sub">Loading your workspace…</p>
+        </div>
+        <div class="dash-tools">
+          <div class="search-field">
+            <span data-icon="search" data-icon-size="16"></span>
+            <input id="project-search" type="search" placeholder="Search projects" aria-label="Search projects" autocomplete="off">
+          </div>
+          <button class="btn" id="btn-new-client" data-icon="folder" data-icon-size="16" type="button">
+            <span data-label>New client</span>
+          </button>
+          <button class="btn btn-accent" id="btn-new" data-icon="plus" data-icon-size="16">
+            <span data-label>New project</span>
+          </button>
+        </div>
+      </div>
+
+      <section id="section-owned">
+        <div class="section-head">
+          <h2>My projects</h2>
+          <span class="count" id="owned-count" hidden></span>
+          <span class="rule"></span>
+        </div>
+        <div id="owned-groups"></div>
+        <div class="empty" id="owned-empty" hidden>
+          <div class="empty-glyph" data-icon="folder" data-icon-size="22"></div>
+          <h3>No projects yet</h3>
+          <p>Add a live URL or a public GitHub repo, then leave comments straight on the page and turn them into Cursor fixes.</p>
+          <button class="btn btn-accent" id="empty-new" data-icon="plus" data-icon-size="16">
+            <span data-label>Create your first project</span>
+          </button>
+        </div>
+      </section>
+
+      <section id="section-invited" hidden>
+        <div class="section-head">
+          <h2>Shared with me</h2>
+          <span class="count" id="invited-count" hidden></span>
+          <span class="rule"></span>
+        </div>
+        <div class="project-grid" id="invited-grid"></div>
+      </section>
+
+      <div class="empty" id="search-empty" hidden>
+        <div class="empty-glyph" data-icon="search" data-icon-size="22"></div>
+        <h3>No matching projects</h3>
+        <p>Nothing here matches your search. Try a different name or URL.</p>
+      </div>
+    </main>
   </div>
-
-  <section id="section-owned">
-    <div class="section-head">
-      <h2>My projects</h2>
-      <span class="count" id="owned-count" hidden></span>
-      <span class="rule"></span>
-    </div>
-    <div id="owned-groups"></div>
-    <div class="empty" id="owned-empty" hidden>
-      <div class="empty-glyph" data-icon="folder" data-icon-size="22"></div>
-      <h3>No projects yet</h3>
-      <p>Add a live URL or a public GitHub repo, then leave comments straight on the page and turn them into Cursor fixes.</p>
-      <button class="btn btn-accent" id="empty-new" data-icon="plus" data-icon-size="16">
-        <span data-label>Create your first project</span>
-      </button>
-    </div>
-  </section>
-
-  <section id="section-invited" hidden>
-    <div class="section-head">
-      <h2>Shared with me</h2>
-      <span class="count" id="invited-count" hidden></span>
-      <span class="rule"></span>
-    </div>
-    <div class="project-grid" id="invited-grid"></div>
-  </section>
-
-  <div class="empty" id="search-empty" hidden>
-    <div class="empty-glyph" data-icon="search" data-icon-size="22"></div>
-    <h3>No matching projects</h3>
-    <p>Nothing here matches your search. Try a different name or URL.</p>
-  </div>
-</main>
+</div>
 
 <!-- Trial / subscription modal -->
 <div class="modal-backdrop" id="modal-trial">
@@ -386,38 +402,16 @@
     return span;
   }
 
-  /* --- user chip --- */
-  const billingChip = document.createElement('button');
-  billingChip.type = 'button';
-  billingChip.className = 'billing-chip';
-  billingChip.hidden = true;
-  // A live subscription (even a failing one) is managed in Stripe's portal;
-  // anything else needs a new checkout, which the portal cannot start.
-  const LIVE = ['trialing', 'active', 'past_due', 'unpaid', 'incomplete'];
-  billingChip.onclick = () => (LIVE.includes(billing.status) ? openPortal() : openTrial());
+  /* --- user chip + sidebar shell --- */
+  function goAccountSettings() {
+    location.href = '/account.html';
+  }
 
-  (function renderUserChip() {
-    const chip = document.getElementById('user-chip');
-    const who = document.createElement('div');
-    who.className = 'user-chip';
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar';
-    avatar.textContent = initials(user.name);
-    const text = document.createElement('div');
-    text.className = 'who';
-    const name = document.createElement('strong');
-    name.textContent = user.name;
-    const email = document.createElement('span');
-    email.textContent = user.email || '';
-    text.append(name, email);
-    who.append(avatar, text);
-
-    chip.append(
-      who,
-      billingChip,
-      iconButton('signOut', 'Sign out', () => ReviewAuth.logout(), 'tip-below'),
-    );
-  })();
+  AppShell.init({
+    user,
+    onAccount: isGuest ? null : goAccountSettings,
+    onManageBilling: isGuest ? null : goAccountSettings,
+  });
 
   /* --- billing --- */
   function formatDate(iso) {
@@ -427,57 +421,24 @@
     });
   }
 
-  function daysLeft(iso) {
-    if (!iso) return 0;
-    return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000));
-  }
-
-  function chipContent(icon, text) {
-    billingChip.innerHTML = Icons.svg(icon, 15);
-    const label = document.createElement('span');
-    label.className = 'label';
-    label.textContent = text;
-    billingChip.appendChild(label);
-  }
-
   function paintBilling() {
     const banner = document.getElementById('billing-banner');
     const bannerText = document.getElementById('billing-banner-text');
     const bannerAction = document.getElementById('billing-banner-action');
 
     if (isGuest || !billing.configured) {
-      billingChip.hidden = true;
+      AppShell.paintPlan(billing, { guest: true });
       banner.classList.remove('show');
       return;
     }
 
-    billingChip.className = 'billing-chip';
-    billingChip.hidden = false;
+    AppShell.paintPlan(billing, { onManage: () => { location.href = '/account.html'; } });
     banner.classList.remove('show');
 
     switch (billing.status) {
-      case 'trialing': {
-        const left = daysLeft(billing.trialEnd);
-        billingChip.classList.add('trial');
-        chipContent('countdown', left === 1 ? 'Trial · 1 day left' : `Trial · ${left} days left`);
-        billingChip.title = `Free until ${formatDate(billing.trialEnd)}, then $49/month. Click to manage billing.`;
-        break;
-      }
-      case 'active':
-        chipContent(
-          'card',
-          billing.cancelAtPeriodEnd ? `Ends ${formatDate(billing.renewsAt)}` : `$49/mo`,
-        );
-        billingChip.title = billing.cancelAtPeriodEnd
-          ? `Your subscription ends on ${formatDate(billing.renewsAt)}.`
-          : `Renews ${formatDate(billing.renewsAt)}. Click to manage billing.`;
-        break;
       case 'past_due':
       case 'unpaid':
       case 'incomplete':
-        billingChip.classList.add('alert');
-        chipContent('warning', 'Payment failed');
-        billingChip.title = billing.reason || '';
         bannerText.textContent = billing.reason
           || 'Your last payment failed. Update your payment method to keep creating projects.';
         setLabel(bannerAction, 'Update payment method');
@@ -487,8 +448,6 @@
       case 'canceled':
       case 'incomplete_expired':
       case 'paused':
-        chipContent('card', 'Subscribe');
-        billingChip.title = billing.reason || '';
         if ((projects.owned || []).length) {
           bannerText.textContent =
             'Your subscription has ended. Your existing projects stay available — resubscribe to create new ones.';
@@ -498,10 +457,7 @@
         }
         break;
       default:
-        // Never subscribed: the New project button is the entry point, so the
-        // header stays quiet unless Stripe already knows this person.
-        billingChip.hidden = !billing.hasCustomer;
-        chipContent('card', 'Billing');
+        break;
     }
   }
 
@@ -675,9 +631,18 @@
     el.className = 'project-card';
     el.dataset.search = `${project.name || ''} ${project.source || ''} ${project.clientName || ''}`.toLowerCase();
 
-    const glyph = document.createElement('div');
-    glyph.className = `card-glyph${isGithub ? ' github' : ''}`;
-    glyph.innerHTML = Icons.svg(isGithub ? 'github' : 'globe', 20);
+    const preview = document.createElement('a');
+    preview.className = 'card-preview';
+    preview.href = project.viewUrl;
+    preview.setAttribute('aria-label', `Open ${project.name}`);
+    const letter = document.createElement('span');
+    letter.className = 'card-preview-letter';
+    letter.textContent = (project.name || 'P').trim().charAt(0).toUpperCase();
+    const previewMeta = document.createElement('span');
+    previewMeta.className = 'card-preview-meta';
+    previewMeta.innerHTML = Icons.svg(isGithub ? 'github' : 'globe', 14);
+    previewMeta.appendChild(document.createTextNode(isGithub ? 'GitHub' : 'Live site'));
+    preview.append(letter, previewMeta);
 
     const title = document.createElement('h3');
     title.textContent = project.name;
@@ -695,9 +660,9 @@
     head.className = 'card-head';
     head.append(title, source);
 
-    const top = document.createElement('div');
-    top.className = 'card-top';
-    top.append(glyph, head);
+    const body = document.createElement('div');
+    body.className = 'card-body';
+    body.appendChild(head);
 
     const facts = document.createElement('div');
     facts.className = 'card-facts';
@@ -717,6 +682,7 @@
     if (project.status && project.status !== 'ready') {
       facts.appendChild(fact('dashed', 'Importing…', 'warn'));
     }
+    body.appendChild(facts);
 
     const actions = document.createElement('div');
     actions.className = 'card-actions';
@@ -739,7 +705,7 @@
       );
     }
 
-    el.append(top, facts, actions);
+    el.append(preview, body, actions);
     return el;
   }
 

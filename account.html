@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Account settings — Codelii Review</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" content="#F6F7FB">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/auth-guard.js"></script>
+<script src="/js/icons.js"></script>
+<script src="/js/app-shell.js"></script>
+</head>
+<body class="app-body">
+<div class="app-shell">
+  <aside class="app-sidebar" aria-label="Workspace" id="app-sidebar">
+    <div class="app-sidebar-top">
+      <a class="app-sidebar-brand" href="/dashboard.html">
+        <span class="app-sidebar-mark" aria-hidden="true">C</span>
+        <span class="app-sidebar-brand-text">Codelii <em>Review</em></span>
+      </a>
+      <button class="app-sidebar-collapse" type="button" id="sidebar-collapse" aria-label="Collapse sidebar" title="Collapse sidebar"></button>
+    </div>
+    <nav class="app-sidebar-nav" aria-label="App">
+      <a href="/dashboard.html">
+        <span data-icon="folder" data-icon-size="18"></span>
+        <span class="app-sidebar-nav-label">Projects</span>
+      </a>
+      <a href="/integrations.html" id="nav-integrations">
+        <span data-icon="settings" data-icon-size="18"></span>
+        <span class="app-sidebar-nav-label">Integrations</span>
+      </a>
+    </nav>
+    <div class="app-sidebar-foot">
+      <div class="app-sidebar-plan" id="sidebar-plan" hidden></div>
+      <div class="dash-user" id="user-chip"></div>
+    </div>
+  </aside>
+
+  <div class="app-main">
+    <main class="dash-wrap settings-wrap">
+      <div class="dash-header">
+        <div>
+          <h1>Account settings</h1>
+          <p class="sub" id="page-sub">Manage your team, subscription, and billing.</p>
+        </div>
+      </div>
+
+      <div class="flash" id="flash" hidden></div>
+
+      <section class="settings-list" aria-label="Account settings">
+        <article class="settings-row">
+          <div class="settings-copy">
+            <h2>Invite team members</h2>
+            <p>Collaborators are invited per project — unlimited, and free for everyone you invite.</p>
+          </div>
+          <div class="settings-control">
+            <p class="settings-note">Open a project from the dashboard and use Invite to add people by email or share link.</p>
+            <a class="btn" href="/dashboard.html">Go to projects</a>
+          </div>
+        </article>
+
+        <article class="settings-row">
+          <div class="settings-copy">
+            <h2>Manage team</h2>
+            <p id="team-summary">Loading…</p>
+          </div>
+          <div class="settings-control">
+            <ul class="settings-team" id="team-list"></ul>
+          </div>
+        </article>
+
+        <article class="settings-row" id="row-subscription">
+          <div class="settings-copy">
+            <h2>Manage subscription</h2>
+            <p>Change or cancel your plan here.</p>
+          </div>
+          <div class="settings-control">
+            <div class="settings-plan-block">
+              <strong id="plan-status">Loading…</strong>
+              <p id="plan-detail" class="settings-muted"></p>
+            </div>
+            <div class="settings-actions" id="plan-actions"></div>
+          </div>
+        </article>
+
+        <article class="settings-row" id="row-payment">
+          <div class="settings-copy">
+            <h2>Manage payment method</h2>
+            <p>Set up or change your credit card details.</p>
+          </div>
+          <div class="settings-control settings-control-inline">
+            <p id="card-status" class="settings-muted">Loading…</p>
+            <div class="settings-actions" id="card-actions"></div>
+          </div>
+        </article>
+
+        <article class="settings-row" id="row-billing-email">
+          <div class="settings-copy">
+            <h2>Manage billing email</h2>
+            <p>Your billing email will be used for all invoices and receipts.</p>
+          </div>
+          <div class="settings-control settings-control-inline">
+            <div>
+              <p class="settings-label">Billing email</p>
+              <p id="billing-email" class="settings-strong">—</p>
+            </div>
+            <div class="settings-actions" id="email-actions"></div>
+          </div>
+        </article>
+
+        <article class="settings-row" id="row-invoices">
+          <div class="settings-copy">
+            <h2>Invoices &amp; discounts</h2>
+            <p>View invoices, apply coupons, and manage credits in the Stripe billing portal.</p>
+          </div>
+          <div class="settings-control">
+            <div id="invoice-preview" class="settings-invoice" hidden></div>
+            <div class="settings-actions" id="invoice-actions"></div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+(function () {
+  if (!window.ReviewAuth?.isLoggedIn()) return;
+
+  document.querySelectorAll('[data-icon]').forEach((node) => {
+    node.insertAdjacentHTML('afterbegin', Icons.svg(node.dataset.icon, Number(node.dataset.iconSize) || 18));
+  });
+
+  const user = ReviewAuth.getUser();
+  if (user?.guest) {
+    location.href = '/dashboard.html';
+    return;
+  }
+
+  let billing = { configured: false, entitled: true, status: 'none', trialDays: 7 };
+  let summary = { billingEmail: user.email || null, card: null, upcomingInvoice: null };
+  let team = [];
+  const LIVE = ['trialing', 'active', 'past_due', 'unpaid', 'incomplete'];
+
+  function initials(n) {
+    return String(n || '?').split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  }
+
+  function formatDate(iso) {
+    if (!iso) return '';
+    return new Date(iso).toLocaleDateString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+    });
+  }
+
+  function formatMoney(cents, currency) {
+    const amount = (Number(cents) || 0) / 100;
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: (currency || 'usd').toUpperCase(),
+      }).format(amount);
+    } catch {
+      return `$${amount.toFixed(2)}`;
+    }
+  }
+
+  function showFlash(kind, message) {
+    const flash = document.getElementById('flash');
+    flash.hidden = false;
+    flash.className = `flash ${kind}`;
+    flash.textContent = message;
+  }
+
+  function btn(label, onClick, { accent = false, disabled = false } = {}) {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = accent ? 'btn btn-accent' : 'btn';
+    el.textContent = label;
+    el.disabled = disabled;
+    el.onclick = onClick;
+    return el;
+  }
+
+  function clear(el) {
+    while (el.firstChild) el.removeChild(el.firstChild);
+  }
+
+  async function openPortal() {
+    try {
+      const res = await fetch('/api/billing', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'portal' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) throw new Error(data.error || 'Could not open the billing portal');
+      window.location.href = data.url;
+    } catch (e) {
+      showFlash('err', e.message);
+    }
+  }
+
+  async function startCheckout() {
+    try {
+      const res = await fetch('/api/billing', {
+        method: 'POST',
+        headers: ReviewAuth.headers(),
+        body: JSON.stringify({ action: 'checkout', returnTo: 'account' }),
+      });
+      const data = await res.json();
+      if (data.alreadyActive) {
+        billing = { configured: true, ...data.billing };
+        paint();
+        showFlash('ok', 'Your subscription is already active.');
+        return;
+      }
+      if (!res.ok || !data.url) throw new Error(data.error || 'Could not start checkout');
+      window.location.href = data.url;
+    } catch (e) {
+      showFlash('err', e.message);
+    }
+  }
+
+  function goAccount() {
+    location.href = '/account.html';
+  }
+
+  function manageFromShell() {
+    location.href = '/account.html';
+  }
+
+  AppShell.init({
+    user,
+    onAccount: goAccount,
+    onManageBilling: manageFromShell,
+  });
+
+  function paintTeam() {
+    const list = document.getElementById('team-list');
+    const summaryEl = document.getElementById('team-summary');
+    clear(list);
+
+    const members = team.length
+      ? team
+      : [{ id: user.id, name: user.name, email: user.email, role: 'Owner', self: true }];
+
+    const n = members.length;
+    summaryEl.textContent = n === 1
+      ? 'There is 1 person on your company domain.'
+      : `There are ${n} people on your company domain.`;
+
+    members.forEach((m) => {
+      const li = document.createElement('li');
+      li.className = 'settings-team-item';
+      const avatar = document.createElement('div');
+      avatar.className = 'avatar';
+      avatar.textContent = initials(m.name || m.email);
+      const who = document.createElement('div');
+      who.className = 'settings-team-who';
+      const name = document.createElement('strong');
+      name.textContent = m.name || m.email || 'Member';
+      const email = document.createElement('span');
+      email.textContent = m.email || '';
+      who.append(name, email);
+      const role = document.createElement('span');
+      role.className = 'settings-role';
+      role.textContent = m.role || 'Member';
+      li.append(avatar, who, role);
+      list.appendChild(li);
+    });
+  }
+
+  function paintSubscription() {
+    const statusEl = document.getElementById('plan-status');
+    const detailEl = document.getElementById('plan-detail');
+    const actions = document.getElementById('plan-actions');
+    clear(actions);
+
+    const agencyNoStripe = billing.agency && !billing.hasCustomer;
+    const planCopy = 'Codelii Review — $49 per month. Unlimited projects and collaborators.';
+
+    if (!billing.configured) {
+      statusEl.textContent = 'Billing unavailable';
+      detailEl.textContent = 'Stripe is not configured on this deployment.';
+      return;
+    }
+
+    if (agencyNoStripe) {
+      statusEl.textContent = 'Current plan · Agency';
+      detailEl.textContent = 'Your agency account includes project creation. Personal billing is not required.';
+      return;
+    }
+
+    switch (billing.status) {
+      case 'trialing': {
+        const left = billing.trialEnd
+          ? Math.max(0, Math.ceil((new Date(billing.trialEnd).getTime() - Date.now()) / 86400000))
+          : billing.trialDays || 7;
+        statusEl.textContent = `Current plan (trialing) · ${left} day${left === 1 ? '' : 's'} left`;
+        detailEl.textContent = planCopy + (billing.trialEnd ? ` Free until ${formatDate(billing.trialEnd)}.` : '');
+        actions.append(
+          btn('Change plan', openPortal),
+          btn('Cancel plan', openPortal),
+        );
+        break;
+      }
+      case 'active':
+        statusEl.textContent = billing.cancelAtPeriodEnd
+          ? `Current plan · Cancels ${formatDate(billing.renewsAt)}`
+          : 'Current plan · Pro';
+        detailEl.textContent = planCopy
+          + (billing.renewsAt && !billing.cancelAtPeriodEnd ? ` Renews ${formatDate(billing.renewsAt)}.` : '');
+        actions.append(
+          btn('Change plan', openPortal),
+          btn('Cancel plan', openPortal),
+        );
+        break;
+      case 'past_due':
+      case 'unpaid':
+      case 'incomplete':
+        statusEl.textContent = 'Payment issue';
+        detailEl.textContent = billing.reason || 'Update your payment method to keep creating projects.';
+        actions.append(btn('Update payment', openPortal, { accent: true }));
+        break;
+      case 'canceled':
+      case 'incomplete_expired':
+      case 'paused':
+        statusEl.textContent = 'No active plan';
+        detailEl.textContent = planCopy;
+        actions.append(btn(
+          billing.trialAvailable === false ? 'Subscribe — $49/month' : `Start ${billing.trialDays || 7}-day free trial`,
+          startCheckout,
+          { accent: true },
+        ));
+        break;
+      default:
+        statusEl.textContent = 'No active plan';
+        detailEl.textContent = planCopy;
+        if (billing.hasCustomer) {
+          actions.append(btn('Manage billing', openPortal), btn('Subscribe', startCheckout, { accent: true }));
+        } else {
+          actions.append(btn(
+            billing.trialAvailable === false ? 'Subscribe — $49/month' : `Start ${billing.trialDays || 7}-day free trial`,
+            startCheckout,
+            { accent: true },
+          ));
+        }
+    }
+  }
+
+  function paintPayment() {
+    const cardStatus = document.getElementById('card-status');
+    const actions = document.getElementById('card-actions');
+    const emailEl = document.getElementById('billing-email');
+    const emailActions = document.getElementById('email-actions');
+    const invoicePreview = document.getElementById('invoice-preview');
+    const invoiceActions = document.getElementById('invoice-actions');
+    const rowPayment = document.getElementById('row-payment');
+    const rowEmail = document.getElementById('row-billing-email');
+    const rowInvoices = document.getElementById('row-invoices');
+
+    clear(actions);
+    clear(emailActions);
+    clear(invoiceActions);
+
+    const agencyNoStripe = billing.agency && !billing.hasCustomer;
+    emailEl.textContent = summary.billingEmail || user.email || '—';
+
+    if (!billing.configured || agencyNoStripe) {
+      rowPayment.hidden = agencyNoStripe;
+      rowEmail.hidden = agencyNoStripe;
+      rowInvoices.hidden = agencyNoStripe;
+      if (!billing.configured) {
+        cardStatus.textContent = 'Billing is not configured.';
+      }
+      return;
+    }
+
+    rowPayment.hidden = false;
+    rowEmail.hidden = false;
+    rowInvoices.hidden = false;
+
+    if (summary.card?.last4) {
+      const brand = (summary.card.brand || 'Card').replace(/^\w/, (c) => c.toUpperCase());
+      cardStatus.textContent = `${brand} ending in ${summary.card.last4}`;
+      actions.append(btn('Update card', openPortal));
+    } else {
+      cardStatus.textContent = 'No card on file.';
+      actions.append(btn(billing.hasCustomer ? 'Add a card' : 'Start subscription', billing.hasCustomer ? openPortal : startCheckout));
+    }
+
+    if (billing.hasCustomer) {
+      emailActions.append(btn('Update email', openPortal));
+    }
+
+    if (summary.upcomingInvoice) {
+      const inv = summary.upcomingInvoice;
+      invoicePreview.hidden = false;
+      invoicePreview.innerHTML = '';
+      const title = document.createElement('strong');
+      title.textContent = 'Upcoming invoice';
+      const meta = document.createElement('span');
+      const range = [formatDate(inv.periodStart), formatDate(inv.periodEnd)].filter(Boolean).join(' – ');
+      meta.textContent = [
+        range,
+        formatMoney(inv.amountDue, inv.currency),
+        inv.nextPaymentAttempt ? `due ${formatDate(inv.nextPaymentAttempt)}` : null,
+      ].filter(Boolean).join(' · ');
+      invoicePreview.append(title, meta);
+    } else {
+      invoicePreview.hidden = true;
+    }
+
+    if (billing.hasCustomer) {
+      invoiceActions.append(btn('Open billing portal', openPortal, { accent: true }));
+    } else {
+      invoiceActions.append(btn('Subscribe to unlock billing', startCheckout, { accent: true }));
+    }
+  }
+
+  function paint() {
+    AppShell.paintPlan({ configured: billing.configured !== false, ...billing }, {
+      onManage: () => { location.href = '/account.html'; },
+    });
+    paintTeam();
+    paintSubscription();
+    paintPayment();
+  }
+
+  async function refresh(query = '') {
+    try {
+      const url = new URL('/api/billing', window.location.origin);
+      url.searchParams.set('details', '1');
+      if (query.startsWith('?')) {
+        const extra = new URLSearchParams(query.slice(1));
+        extra.forEach((v, k) => url.searchParams.set(k, v));
+      }
+      const res = await fetch(url.pathname + url.search, {
+        headers: ReviewAuth.headers(),
+      });
+      if (!res.ok && res.status !== 403) return;
+      const data = await res.json();
+      if (data.billing) billing = { configured: data.configured !== false, ...data.billing };
+      else billing.configured = data.configured !== false;
+      if (Array.isArray(data.team)) team = data.team;
+      if (data.summary) summary = data.summary;
+      paint();
+    } catch {
+      showFlash('err', 'Could not load billing details.');
+    }
+  }
+
+  async function settleReturn() {
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get('billing');
+    if (!outcome) return;
+    const sessionId = params.get('session_id');
+    window.history.replaceState({}, '', window.location.pathname);
+    if (outcome === 'success' && sessionId) {
+      await refresh(`?session_id=${encodeURIComponent(sessionId)}`);
+      showFlash('ok', 'Subscription updated.');
+      return;
+    }
+    if (outcome === 'cancelled') {
+      showFlash('err', 'Checkout was cancelled.');
+      return;
+    }
+    await refresh();
+    if (outcome === 'return') showFlash('ok', 'Billing details refreshed.');
+  }
+
+  settleReturn().then(() => {
+    if (!new URLSearchParams(window.location.search).get('billing')) refresh();
+  });
+})();
+</script>
+</body>
+</html>

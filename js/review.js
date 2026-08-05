@@ -432,12 +432,10 @@
       type: 'button',
       class: `review-device-btn${state.device === id ? ' is-active' : ''}`,
       title: `${DEVICE_LABELS[id]} preview`,
+      'aria-label': `${DEVICE_LABELS[id]} preview`,
       'aria-pressed': state.device === id ? 'true' : 'false',
       onclick: () => setReviewDevice(id),
-    }, [
-      icon(DEVICE_ICONS[id], 16),
-      el('span', {}, [DEVICE_LABELS[id]]),
-    ])));
+    }, [icon(DEVICE_ICONS[id], 16)])));
   }
 
   function normalizeHost(host) {
@@ -811,44 +809,49 @@
     if (showChrome) {
       const toolbar = el('div', { class: 'review-toolbar', id: 'review-toolbar' }, [
         el('div', { class: 'review-toolbar-left' }, [
+          el('a', {
+            class: 'review-brand-mark',
+            href: '/dashboard.html',
+            title: 'Codelii Dashboard',
+            'aria-label': 'Codelii Dashboard',
+          }, ['C']),
           el('button', {
             type: 'button',
-            class: 'review-btn review-btn-toolbar',
+            class: 'review-btn review-btn-icon review-btn-quiet',
             id: 'review-toggle-sidebar',
-            title: 'Toggle comments sidebar',
+            title: 'Comments',
+            'aria-label': 'Toggle comments sidebar',
             onclick: toggleSidebar,
-          }, btnContent('list', 'Comments')),
-          el('a', {
-            class: 'review-btn review-btn-toolbar review-btn-quiet',
-            href: '/dashboard.html',
-            title: 'Back to dashboard',
-          }, btnContent('house', 'Dashboard')),
+          }, [icon('chat', 18)]),
           el('div', { class: 'review-toolbar-divider' }),
-          el('div', { class: 'review-logo' }, [
-            el('span', { class: 'review-logo-name' }, [project.name || 'Project']),
-            el('span', { class: 'review-logo-badge' }, [
-              state.device === 'desktop' ? 'Review' : DEVICE_LABELS[state.device],
-            ]),
+          el('div', {
+            class: 'review-project-chip',
+            title: project.name || 'Project',
+          }, [
+            el('span', { class: 'review-project-name' }, [project.name || 'Project']),
           ]),
-          buildDeviceSwitcher(),
+        ]),
+        el('div', { class: 'review-toolbar-context' }, [
           buildPageJump(),
-          el('div', { class: 'review-online-wrap', id: 'review-online-wrap' }),
+          buildDeviceSwitcher(),
         ]),
         el('div', { class: 'review-toolbar-right' }, [
+          el('div', { class: 'review-online-wrap', id: 'review-online-wrap', hidden: true }),
           el('button', {
             type: 'button',
             class: 'review-btn review-btn-approve',
             id: 'review-approve-btn',
             title: 'Sign off on this page for agency records',
             onclick: togglePageApproval,
-          }, btnContent('sealCheck', 'Approve page')),
+          }, btnContent('sealCheck', 'Approve')),
           el('button', {
             type: 'button',
             class: 'review-btn review-btn-primary',
             id: 'review-toggle-mode',
             title: 'Click anywhere on the page to leave a comment',
             onclick: toggleCommentMode,
-          }, btnContent('plus', 'Add comment')),
+          }, btnContent('plus', 'Comment')),
+          el('div', { class: 'review-toolbar-divider' }),
           el('div', { class: 'review-notifications-wrap', id: 'review-notifications-wrap' }, [
             el('button', {
               type: 'button',
@@ -858,36 +861,60 @@
               'aria-label': 'Notifications',
               onclick: toggleNotifications,
             }, [
-              icon('bell', 18),
+              icon('bell', 17),
               el('span', { class: 'review-notifications-badge', id: 'review-notifications-badge' }, ['']),
             ]),
             el('div', { class: 'review-notifications-panel', id: 'review-notifications-panel' }),
           ]),
-          el('div', { class: 'review-user', title: user.email || user.name }, [
+          el('div', {
+            class: 'review-user',
+            title: user.email || user.name,
+            'aria-label': user.name || user.email || 'Signed in',
+          }, [
             el('div', { class: 'review-avatar' }, [initials(user.name)]),
-            el('span', { class: 'review-user-name' }, [user.name]),
           ]),
           el('button', {
             type: 'button',
-            class: 'review-btn review-btn-icon',
+            class: 'review-btn review-btn-icon review-btn-quiet',
             title: 'Sign out',
             'aria-label': 'Sign out',
             onclick: () => ReviewAuth.logout(),
-          }, [icon('signOut', 17)]),
+          }, [icon('signOut', 16)]),
         ]),
+      ]);
+
+      const pinCue = el('div', {
+        class: 'review-pin-cue',
+        id: 'review-pin-cue',
+        hidden: true,
+        role: 'status',
+      }, [
+        el('span', { class: 'review-pin-cue-dot' }),
+        el('strong', {}, ['Pinning feedback']),
+        el('span', {}, ['Click anywhere on the page · Esc to cancel']),
+        el('button', {
+          type: 'button',
+          class: 'review-pin-cue-cancel',
+          onclick: () => toggleCommentMode(),
+        }, ['Cancel']),
       ]);
 
       const sidebar = el('div', { class: 'review-sidebar open', id: 'review-sidebar' }, [
         el('div', { class: 'review-sidebar-header' }, [
           el('div', { class: 'review-sidebar-title' }, [
-            icon('chat', 18),
             el('h2', {}, ['Comments']),
+            el('span', { class: 'review-sidebar-count', id: 'review-count' }, ['0']),
           ]),
-          el('span', { class: 'review-sidebar-count', id: 'review-count' }, ['0']),
+          el('button', {
+            type: 'button',
+            class: 'review-sidebar-collapse',
+            title: 'Hide comments',
+            'aria-label': 'Hide comments sidebar',
+            onclick: toggleSidebar,
+          }, [icon('arrowLeft', 16)]),
         ]),
         canUseCursorTools
           ? el('div', { class: 'review-sidebar-prompts', id: 'review-sidebar-prompts' }, [
-            el('p', { class: 'review-sidebar-prompts-label' }, ['Cursor actions']),
             el('div', { class: 'review-sidebar-prompt-row' }, [
               el('button', {
                 type: 'button',
@@ -898,7 +925,7 @@
                   e.stopPropagation();
                   copyAllOpenPrompts();
                 },
-              }, btnContent('copy', 'Copy prompts')),
+              }, btnContent('copy', 'Copy prompts', 14)),
               el('button', {
                 type: 'button',
                 class: 'review-btn review-btn-fix',
@@ -908,7 +935,7 @@
                   e.stopPropagation();
                   fixAllOpenWithCursor(e.currentTarget);
                 },
-              }, btnContent('sparkle', 'Fix all')),
+              }, btnContent('sparkle', 'Fix all', 14)),
             ]),
           ])
           : null,
@@ -942,10 +969,22 @@
         ]),
         el('div', { class: 'review-progress', id: 'review-progress', hidden: true }),
         el('div', { class: 'review-sidebar-list', id: 'review-sidebar-list' }),
-      ]);
+      ].filter(Boolean));
+
+      const sidebarRail = el('button', {
+        type: 'button',
+        class: 'review-sidebar-rail',
+        id: 'review-sidebar-rail',
+        title: 'Show comments',
+        'aria-label': 'Show comments sidebar',
+        hidden: true,
+        onclick: toggleSidebar,
+      }, [icon('chat', 16)]);
 
       document.body.appendChild(toolbar);
+      document.body.appendChild(pinCue);
       document.body.appendChild(sidebar);
+      document.body.appendChild(sidebarRail);
     }
 
     if (showPins) {
@@ -1069,26 +1108,28 @@
     const fingerprint = state.onlineUsers
       .map((u) => `${u.id}:${u.name}:${u.page || ''}`)
       .join('|') + `|f:${state.followingUserId || ''}`;
-    if (wrap.dataset.fp === fingerprint && wrap.childNodes.length) return;
+    if (wrap.dataset.fp === fingerprint) {
+      if (!state.onlineUsers.length) {
+        wrap.hidden = true;
+        return;
+      }
+      if (wrap.childNodes.length) return;
+    }
     wrap.dataset.fp = fingerprint;
     hideOnlineTip();
     wrap.innerHTML = '';
 
+    // Alone → keep the bar quiet; faces only when collaborators are present.
     if (!state.onlineUsers.length) {
-      wrap.appendChild(el('div', { class: 'review-online-empty' }, [
-        icon('users', 14),
-        el('span', {}, ['Just you']),
-      ]));
+      wrap.hidden = true;
       return;
     }
 
-    wrap.appendChild(el('div', { class: 'review-online-label' }, [
-      icon('users', 14),
-      el('span', {}, [`${state.onlineUsers.length} online`]),
-    ]));
+    wrap.hidden = false;
+    wrap.setAttribute('aria-label', `${state.onlineUsers.length} online`);
 
     const faces = el('div', { class: 'review-online-faces' });
-    state.onlineUsers.slice(0, 5).forEach((u) => {
+    state.onlineUsers.slice(0, 4).forEach((u) => {
       const following = state.followingUserId === u.id;
       const face = el('button', {
         type: 'button',
@@ -1110,11 +1151,11 @@
 
       faces.appendChild(face);
     });
-    if (state.onlineUsers.length > 5) {
+    if (state.onlineUsers.length > 4) {
       faces.appendChild(el('div', {
         class: 'review-online-face review-online-face-more',
-        title: state.onlineUsers.slice(5).map((u) => u.name).join(', '),
-      }, [`+${state.onlineUsers.length - 5}`]));
+        title: state.onlineUsers.slice(4).map((u) => u.name).join(', '),
+      }, [`+${state.onlineUsers.length - 4}`]));
     }
     wrap.appendChild(faces);
   }
@@ -1397,7 +1438,7 @@
   async function captureViewportScreenshot() {
     const html2canvas = await getHtml2Canvas();
     const reviewNodes = document.querySelectorAll(
-      '.review-toolbar, .review-sidebar, .review-pins-layer, .review-bubble, .review-click-shield, .review-live-toasts, .review-mention-dropdown, .review-selection-bar, .review-cursor-fix-backdrop, .review-follow-banner, .review-online-tip-float'
+      '.review-toolbar, .review-sidebar, .review-pins-layer, .review-bubble, .review-click-shield, .review-live-toasts, .review-mention-dropdown, .review-selection-bar, .review-cursor-fix-backdrop, .review-follow-banner, .review-online-tip-float, .review-pin-cue, .review-sidebar-rail'
     );
 
     reviewNodes.forEach((node) => {
@@ -1583,21 +1624,29 @@
   function toggleSidebar() {
     state.sidebarOpen = !state.sidebarOpen;
     const sidebar = document.getElementById('review-sidebar');
-    sidebar.classList.toggle('open', state.sidebarOpen);
+    const rail = document.getElementById('review-sidebar-rail');
+    if (sidebar) sidebar.classList.toggle('open', state.sidebarOpen);
     document.body.classList.toggle('review-sidebar-open', state.sidebarOpen);
+    if (rail) rail.hidden = state.sidebarOpen;
   }
 
   function paintCommentModeButton(on) {
     state.commentMode = on;
-    const btn = document.getElementById('review-toggle-mode');
-    if (!btn) return;
     document.body.classList.toggle('review-comment-mode', on && !state.shellHost);
-    btn.classList.toggle('review-btn-active', on);
-    btn.classList.toggle('review-btn-primary', !on);
-    setButtonContent(btn, on ? 'x' : 'plus', on ? 'Cancel' : 'Add comment');
-    btn.title = on
-      ? 'Cancel commenting'
-      : 'Click anywhere on the page to leave a comment';
+
+    const btn = document.getElementById('review-toggle-mode');
+    if (btn) {
+      btn.classList.toggle('review-btn-active', on);
+      btn.classList.toggle('review-btn-primary', !on);
+      setButtonContent(btn, on ? 'x' : 'plus', on ? 'Cancel' : 'Comment');
+      btn.title = on
+        ? 'Cancel pinning feedback'
+        : 'Click anywhere on the page to leave a comment';
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+
+    const cue = document.getElementById('review-pin-cue');
+    if (cue) cue.hidden = !on;
   }
 
   function applyCommentMode(on) {
@@ -1987,7 +2036,7 @@
       setButtonContent(btn, 'sealCheck', 'Approved', 16);
       btn.title = `Signed off by ${state.pageApproval.approvedByName} · ${formatTime(state.pageApproval.approvedAt)}`;
     } else {
-      setButtonContent(btn, 'sealCheck', 'Approve page', 16);
+      setButtonContent(btn, 'sealCheck', 'Approve', 16);
       btn.title = 'Sign off on this page for agency records';
     }
   }
@@ -3008,16 +3057,16 @@
     if (!items.length) {
       list.innerHTML = '';
       list.appendChild(el('div', { class: 'review-sidebar-empty' }, [
-        icon(state.sidebarTab === 'resolved' ? 'checkCircle' : 'chat', 28),
+        icon(state.sidebarTab === 'resolved' ? 'checkCircle' : 'chat', 32),
         el('p', {}, [
           state.sidebarTab === 'resolved'
-            ? 'No resolved comments yet.'
-            : 'No open comments yet.',
+            ? 'No resolved threads'
+            : 'No open comments on this page',
         ]),
         el('span', {}, [
           state.sidebarTab === 'resolved'
-            ? 'Resolve a thread to archive it here.'
-            : `No ${DEVICE_LABELS[state.device].toLowerCase()} comments yet. Switch preview or add one here.`,
+            ? 'Resolved feedback will show up here.'
+            : 'Hit Comment, then click the page to pin feedback.',
         ]),
       ]));
       updateSidebarActionButtons(openItems.length);

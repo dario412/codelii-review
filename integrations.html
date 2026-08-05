@@ -8,48 +8,79 @@
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
-<meta name="theme-color" content="#002B2B">
+<meta name="theme-color" content="#F6F7FB">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/app.css">
 <script src="/js/auth-guard.js"></script>
 <script src="/js/icons.js"></script>
+<script src="/js/app-shell.js"></script>
 </head>
 <body class="app-body">
-<header class="site-nav app-nav">
-  <div class="nav-inner">
-    <div class="nav-left">
-      <a class="brand" href="/dashboard.html">Codelii<span> Review</span></a>
-      <nav class="app-links" aria-label="App">
-        <a href="/dashboard.html">Projects</a>
-        <a href="/integrations.html" aria-current="page">Integrations</a>
-      </nav>
+<div class="app-shell">
+  <aside class="app-sidebar" aria-label="Workspace" id="app-sidebar">
+    <div class="app-sidebar-top">
+      <a class="app-sidebar-brand" href="/dashboard.html">
+        <span class="app-sidebar-mark" aria-hidden="true">C</span>
+        <span class="app-sidebar-brand-text">Codelii <em>Review</em></span>
+      </a>
+      <button class="app-sidebar-collapse" type="button" id="sidebar-collapse" aria-label="Collapse sidebar" title="Collapse sidebar"></button>
     </div>
-    <div class="dash-user" id="user-chip"></div>
-  </div>
-</header>
-
-<main class="dash-wrap">
-  <div class="dash-header">
-    <div>
-      <h1>Integrations</h1>
-      <p class="sub" id="page-sub">Connect the tools your agency already uses. More coming soon.</p>
+    <nav class="app-sidebar-nav" aria-label="App">
+      <a href="/dashboard.html">
+        <span data-icon="folder" data-icon-size="18"></span>
+        <span class="app-sidebar-nav-label">Projects</span>
+      </a>
+      <a href="/integrations.html" aria-current="page">
+        <span data-icon="settings" data-icon-size="18"></span>
+        <span class="app-sidebar-nav-label">Integrations</span>
+      </a>
+    </nav>
+    <div class="app-sidebar-foot">
+      <div class="app-sidebar-plan" id="sidebar-plan" hidden></div>
+      <div class="dash-user" id="user-chip"></div>
     </div>
-  </div>
+  </aside>
 
-  <div class="flash" id="flash" hidden></div>
+  <div class="app-main">
+    <main class="dash-wrap">
+      <div class="dash-header">
+        <div>
+          <p class="dash-eyebrow">Workspace</p>
+          <h1>Integrations</h1>
+          <p class="sub" id="page-sub">Route review feedback into the tools your team already lives in — chat, email, and task trackers.</p>
+        </div>
+      </div>
+
+      <div class="flash" id="flash" hidden></div>
+
+      <ol class="integrations-flow" aria-label="How integrations work">
+        <li>
+          <span class="integrations-flow-label">Notify</span>
+          <span class="integrations-flow-text">Post live updates to Slack, Teams, Discord, or email.</span>
+        </li>
+        <li>
+          <span class="integrations-flow-label">Review</span>
+          <span class="integrations-flow-text">Keep pinning feedback in Codelii — nothing changes in the review UI.</span>
+        </li>
+        <li>
+          <span class="integrations-flow-label">Track</span>
+          <span class="integrations-flow-text">Create a task from any comment in Asana, Linear, Jira, and more.</span>
+        </li>
+      </ol>
 
   <div class="integration-section">
     <div class="section-head">
-      <h2>Notifications</h2>
+      <h2>Chat &amp; email</h2>
       <span class="rule"></span>
     </div>
+    <p class="integration-section-lede">Get notified the moment feedback lands — without checking the dashboard every hour.</p>
     <div class="integration-grid" id="notify-grid">
       <article class="integration-card" id="card-slack">
         <div class="integration-card-top">
           <div class="integration-logo slack" aria-hidden="true">
-            <svg width="28" height="28" viewBox="0 0 127 127" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <svg width="32" height="32" viewBox="0 0 127 127" fill="none" xmlns="http://www.w3.org/2000/svg">
               <path d="M27.2 80c0 7.3-5.9 13.2-13.2 13.2C6.7 93.2.8 87.3.8 80c0-7.3 5.9-13.2 13.2-13.2h13.2V80zm6.6 0c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V80z" fill="#E01E5A"/>
               <path d="M47 27.2c-7.3 0-13.2-5.9-13.2-13.2C33.8 6.7 39.7.8 47 .8c7.3 0 13.2 5.9 13.2 13.2v13.2H47zm0 6.6c7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H14c-7.3 0-13.2-5.9-13.2-13.2C.8 39.7 6.7 33.8 14 33.8H47z" fill="#36C5F0"/>
               <path d="M99.8 47c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2 0 7.3-5.9 13.2-13.2 13.2H99.8V47zm-6.6 0c0 7.3-5.9 13.2-13.2 13.2-7.3 0-13.2-5.9-13.2-13.2V14c0-7.3 5.9-13.2 13.2-13.2 7.3 0 13.2 5.9 13.2 13.2v33z" fill="#2EB67D"/>
@@ -57,10 +88,12 @@
             </svg>
           </div>
           <div class="integration-meta">
-            <h2>Slack</h2>
-            <p>Get review comments, assignments, and page approvals in a Slack channel.</p>
+            <div class="integration-title-row">
+              <h2>Slack</h2>
+              <span class="integration-status" id="slack-status">…</span>
+            </div>
+            <p>New comments, mentions, assignments, and approvals post to a channel your team already watches.</p>
           </div>
-          <span class="integration-status" id="slack-status">Checking…</span>
         </div>
         <div class="integration-details" id="slack-details" hidden></div>
         <div class="integration-actions" id="slack-actions"></div>
@@ -69,7 +102,7 @@
       <article class="integration-card" id="card-teams">
         <div class="integration-card-top">
           <div class="integration-logo teams" aria-hidden="true">
-            <svg width="28" height="28" viewBox="0 0 2228.833 2073.333" xmlns="http://www.w3.org/2000/svg">
+            <svg width="32" height="32" viewBox="0 0 2228.833 2073.333" xmlns="http://www.w3.org/2000/svg">
               <path fill="#5059C9" d="M1554.667 700.333h575.083c54.533 0 98.75 44.22 98.75 98.75v674.083c0 169.683-137.533 307.25-307.25 307.25h-0.5c-169.683 0-307.25-137.567-307.25-307.25V734.667a34.333 34.333 0 0 1 34.333-34.333z"/>
               <circle fill="#5059C9" cx="1943.917" cy="341.083" r="212.25"/>
               <circle fill="#7B83EB" cx="1218.833" cy="336.917" r="336.917"/>
@@ -79,10 +112,12 @@
             </svg>
           </div>
           <div class="integration-meta">
-            <h2>Microsoft Teams</h2>
-            <p>Post the same review updates to a Teams channel via incoming webhook.</p>
+            <div class="integration-title-row">
+              <h2>Microsoft Teams</h2>
+              <span class="integration-status" id="teams-status">…</span>
+            </div>
+            <p>Same review updates in a Teams channel — for clients who live in Microsoft 365.</p>
           </div>
-          <span class="integration-status" id="teams-status">Checking…</span>
         </div>
         <div class="integration-details" id="teams-details" hidden></div>
         <div class="integration-actions" id="teams-actions"></div>
@@ -91,15 +126,17 @@
       <article class="integration-card" id="card-discord">
         <div class="integration-card-top">
           <div class="integration-logo discord" aria-hidden="true">
-            <svg width="28" height="28" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg">
+            <svg width="32" height="32" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg">
               <path fill="#5865F2" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0a105.89 105.89 0 0 0-26.25 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2a68.68 68.68 0 0 1-10.87 5.19 77 77 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69c-6.23 0-11.31-5.67-11.31-12.67s4.98-12.69 11.31-12.69 11.37 5.73 11.31 12.69c.01 7-4.99 12.67-11.31 12.67Zm42.24 0c-6.23 0-11.31-5.67-11.31-12.67s4.99-12.69 11.31-12.69 11.37 5.73 11.31 12.69c0 7-5 12.67-11.31 12.67Z"/>
             </svg>
           </div>
           <div class="integration-meta">
-            <h2>Discord</h2>
-            <p>Dev-friendly channel alerts for comments, assignments, and approvals.</p>
+            <div class="integration-title-row">
+              <h2>Discord</h2>
+              <span class="integration-status" id="discord-status">…</span>
+            </div>
+            <p>Review activity in a Discord channel — useful for product and engineering rooms.</p>
           </div>
-          <span class="integration-status" id="discord-status">Checking…</span>
         </div>
         <div class="integration-details" id="discord-details" hidden></div>
         <div class="integration-actions" id="discord-actions"></div>
@@ -108,16 +145,18 @@
       <article class="integration-card" id="card-digest">
         <div class="integration-card-top">
           <div class="integration-logo digest" aria-hidden="true">
-            <svg width="28" height="28" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="256" height="256" rx="56" fill="#002B2B"/>
-              <path d="M48 88h160v16H48V88zm0 40h160v16H48v-16zm0 40h112v16H48v-16z" fill="#B8FF54"/>
+            <svg width="32" height="32" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="256" height="256" rx="56" fill="#E7F5FF"/>
+              <path d="M48 88h160v16H48V88zm0 40h160v16H48v-16zm0 40h112v16H48v-16z" fill="#5B7CFA"/>
             </svg>
           </div>
           <div class="integration-meta">
-            <h2>Email digest</h2>
-            <p>Daily or weekly summary of open comments across your projects.</p>
+            <div class="integration-title-row">
+              <h2>Email digest</h2>
+              <span class="integration-status" id="digest-status">…</span>
+            </div>
+            <p>Daily or weekly summary of open comments across the projects you own.</p>
           </div>
-          <span class="integration-status" id="digest-status">Checking…</span>
         </div>
         <div class="integration-details" id="digest-details" hidden></div>
         <div class="integration-actions" id="digest-actions"></div>
@@ -127,13 +166,15 @@
 
   <div class="integration-section">
     <div class="section-head">
-      <h2>Project management</h2>
+      <h2>Task trackers</h2>
       <span class="rule"></span>
     </div>
-    <p class="integration-section-lede">Connect your PM tool once, then turn any review comment into a task from the comment bubble.</p>
+    <p class="integration-section-lede">Connect once, then create a task from any comment bubble — with the screenshot and context already attached.</p>
     <div class="integration-grid" id="pm-grid"></div>
   </div>
-</main>
+    </main>
+  </div>
+</div>
 
 <!-- Webhook connect modal (Teams / Discord) -->
 <div class="modal-backdrop" id="modal-webhook">
@@ -172,7 +213,7 @@
       <div class="modal-glyph" data-icon="mail" data-icon-size="20"></div>
       <div class="titles">
         <h2 id="digest-title">Email digest</h2>
-        <p class="sub">Get a summary of open comments across your projects.</p>
+        <p class="sub">A calm summary of open comments across every project you own.</p>
       </div>
       <button class="btn btn-icon" data-close="modal-digest" data-icon="close" data-icon-size="16" aria-label="Close"></button>
     </div>
@@ -184,7 +225,7 @@
           <option value="daily">Daily</option>
           <option value="weekly">Weekly (Mondays)</option>
         </select>
-        <p class="field-hint">Uses Resend (same as invites and @mentions). Digests only send when you have open comments.</p>
+        <p class="field-hint">Digests only send when you have open comments — no empty inbox noise.</p>
       </div>
     </div>
     <div class="modal-actions">
@@ -201,7 +242,7 @@
       <div class="modal-glyph" data-icon="link" data-icon-size="20"></div>
       <div class="titles">
         <h2 id="teams-channel-title">Choose a Teams channel</h2>
-        <p class="sub">Use a normal Team + channel (not Communities). Codelii will post review updates there.</p>
+        <p class="sub">Pick the Team and channel where Codelii should post review updates.</p>
       </div>
       <button class="btn btn-icon" data-close="modal-teams-channel" data-icon="close" data-icon-size="16" aria-label="Close"></button>
     </div>
@@ -214,7 +255,7 @@
       <div class="field">
         <label for="teams-channel">Channel</label>
         <select id="teams-channel"></select>
-        <p class="field-hint">If the lists are empty, make sure you belong to at least one Microsoft 365 Team with channels.</p>
+        <p class="field-hint">Need a regular Microsoft 365 Team with channels — Communities aren’t supported.</p>
       </div>
     </div>
     <div class="modal-actions">
@@ -238,36 +279,27 @@
     return;
   }
 
-  function initials(n) {
-    return String(n || '?').split(/\s+/).map((p) => p[0]).join('').slice(0, 2).toUpperCase();
+  let billing = { configured: false, entitled: true, status: 'none', trialDays: 7 };
+
+  AppShell.init({
+    user,
+    onAccount: () => { location.href = '/account.html'; },
+    onManageBilling: () => { location.href = '/account.html'; },
+  });
+
+  async function refreshBilling() {
+    try {
+      const res = await fetch('/api/billing', { headers: ReviewAuth.headers() });
+      if (!res.ok && res.status !== 403) return;
+      const data = await res.json();
+      if (data.billing) billing = { configured: data.configured !== false, ...data.billing };
+      AppShell.paintPlan(billing, { onManage: () => { location.href = '/account.html'; } });
+    } catch {
+      /* advisory */
+    }
   }
 
-  (function renderUserChip() {
-    const chip = document.getElementById('user-chip');
-    const who = document.createElement('div');
-    who.className = 'user-chip';
-    const avatar = document.createElement('div');
-    avatar.className = 'avatar';
-    avatar.textContent = initials(user.name);
-    const text = document.createElement('div');
-    text.className = 'who';
-    const name = document.createElement('strong');
-    name.textContent = user.name;
-    const email = document.createElement('span');
-    email.textContent = user.email || '';
-    text.append(name, email);
-    who.append(avatar, text);
-
-    const out = document.createElement('button');
-    out.type = 'button';
-    out.className = 'btn btn-icon tip tip-below';
-    out.dataset.tip = 'Sign out';
-    out.setAttribute('aria-label', 'Sign out');
-    out.innerHTML = Icons.svg('signOut', 17);
-    out.onclick = () => ReviewAuth.logout();
-
-    chip.append(who, out);
-  })();
+  refreshBilling();
 
   function setLabel(btn, text) {
     const el = btn.querySelector('[data-label]');
@@ -322,15 +354,18 @@
     details.textContent = '';
 
     if (!slack?.available) {
-      status.textContent = 'Not configured';
-      status.className = 'integration-status warn';
+      status.textContent = 'Setup needed';
+      status.className = 'integration-status muted';
       card.classList.remove('is-connected');
+      card.classList.add('is-blocked');
       const note = document.createElement('p');
       note.className = 'integration-hint';
-      note.textContent = 'Add SLACK_CLIENT_ID and SLACK_CLIENT_SECRET on the server, then connect in one click.';
+      note.textContent = 'Slack isn’t enabled for this workspace yet. Ask your admin to turn it on, then connect in one click.';
       actions.appendChild(note);
       return;
     }
+
+    card.classList.remove('is-blocked');
 
     if (slack.connected) {
       status.textContent = 'Connected';
@@ -396,8 +431,8 @@
       return;
     }
 
-    status.textContent = 'Not connected';
-    status.className = 'integration-status';
+    status.textContent = 'Available';
+    status.className = 'integration-status ready';
     card.classList.remove('is-connected');
     const connect = document.createElement('button');
     connect.type = 'button';
@@ -407,7 +442,7 @@
     actions.appendChild(connect);
     const hint = document.createElement('p');
     hint.className = 'integration-hint';
-    hint.textContent = 'One click — pick a channel, and Codelii posts review updates there.';
+    hint.textContent = 'Authorize Slack, pick a channel, and new review activity posts there automatically.';
     actions.appendChild(hint);
   }
 
@@ -432,15 +467,15 @@
   const WEBHOOK_MODALS = {
     teams: {
       title: 'Connect Microsoft Teams',
-      sub: 'Paste an Incoming Webhook or Power Automate URL for the channel you want.',
-      hint: 'In Teams: channel ⋯ → Workflows / Connectors → Incoming Webhook → copy the URL.',
+      sub: 'Paste the webhook URL for the channel where updates should appear.',
+      hint: 'In Teams: open the channel menu → Workflows or Connectors → Incoming Webhook → copy the URL.',
       placeholder: 'https://…webhook.office.com/…',
       connectedOk: 'Teams connected.',
     },
     discord: {
       title: 'Connect Discord',
-      sub: 'Paste a channel webhook URL from Discord.',
-      hint: 'In Discord: channel settings → Integrations → Webhooks → New Webhook → copy URL.',
+      sub: 'Paste a webhook URL from the Discord channel you want to notify.',
+      hint: 'In Discord: Channel settings → Integrations → Webhooks → New Webhook → Copy Webhook URL.',
       placeholder: 'https://discord.com/api/webhooks/…',
       connectedOk: 'Discord connected.',
     },
@@ -607,8 +642,8 @@
       return;
     }
 
-    status.textContent = 'Not connected';
-    status.className = 'integration-status';
+    status.textContent = 'Available';
+    status.className = 'integration-status ready';
     card.classList.remove('is-connected');
 
     const connect = document.createElement('button');
@@ -633,11 +668,11 @@
     details.textContent = '';
 
     if (teams?.pendingChannel) {
-      status.textContent = 'Pick channel';
+      status.textContent = 'Finish setup';
       status.className = 'integration-status warn';
       card.classList.add('is-connected');
       details.hidden = false;
-      details.textContent = 'Microsoft signed in — choose a Team channel to finish.';
+      details.textContent = 'You’re signed in with Microsoft — pick a Team channel to finish.';
       const pick = document.createElement('button');
       pick.type = 'button';
       pick.className = 'btn btn-accent';
@@ -716,8 +751,8 @@
       return;
     }
 
-    status.textContent = 'Not connected';
-    status.className = 'integration-status';
+    status.textContent = 'Available';
+    status.className = 'integration-status ready';
     card.classList.remove('is-connected');
 
     if (teams?.oauth) {
@@ -735,7 +770,7 @@
       actions.appendChild(alt);
       const hint = document.createElement('p');
       hint.className = 'integration-hint';
-      hint.textContent = 'Sign in with Microsoft, then pick a normal Team channel (not Communities).';
+      hint.textContent = 'Sign in with Microsoft, then choose a Team channel. Prefer a webhook? Use the alternate option.';
       actions.appendChild(hint);
       return;
     }
@@ -749,7 +784,7 @@
     actions.appendChild(connect);
     const hint = document.createElement('p');
     hint.className = 'integration-hint';
-    hint.textContent = 'Add TEAMS_CLIENT_ID and TEAMS_CLIENT_SECRET for one-click Microsoft sign-in, or paste a channel webhook.';
+    hint.textContent = 'Paste an Incoming Webhook URL from your Teams channel — takes about a minute.';
     actions.appendChild(hint);
   }
 
@@ -857,7 +892,7 @@
       disconnectConfirm: 'Disconnect Discord?',
       disconnected: 'Discord disconnected.',
       connectLabel: 'Connect Discord',
-      hint: 'Opens a dialog to paste your Discord webhook URL.',
+      hint: 'We’ll ask for a Discord webhook URL — then review updates land in that channel.',
     });
   }
 
@@ -871,15 +906,18 @@
     details.textContent = '';
 
     if (!digest?.available) {
-      status.textContent = 'Not configured';
-      status.className = 'integration-status warn';
+      status.textContent = 'Setup needed';
+      status.className = 'integration-status muted';
       card.classList.remove('is-connected');
+      card.classList.add('is-blocked');
       const note = document.createElement('p');
       note.className = 'integration-hint';
-      note.textContent = 'Add RESEND_API_KEY (and RESEND_FROM_EMAIL) on the server to enable digests.';
+      note.textContent = 'Email digests aren’t enabled for this workspace yet. Ask your admin to turn email delivery on.';
       actions.appendChild(note);
       return;
     }
+
+    card.classList.remove('is-blocked');
 
     const frequency = digest.frequency || 'off';
     if (frequency !== 'off') {
@@ -889,12 +927,12 @@
       details.hidden = false;
       details.textContent = digest.lastSentAt
         ? `Last sent ${formatDate(digest.lastSentAt)}`
-        : 'Will send when you have open comments.';
+        : 'Sends only when you have open comments.';
 
       const change = document.createElement('button');
       change.type = 'button';
       change.className = 'btn';
-      change.innerHTML = '<span data-label>Change</span>';
+      change.innerHTML = '<span data-label>Change schedule</span>';
       change.onclick = () => {
         document.getElementById('digest-frequency').value = frequency;
         document.getElementById('digest-error').textContent = '';
@@ -949,8 +987,8 @@
       return;
     }
 
-    status.textContent = 'Off';
-    status.className = 'integration-status';
+    status.textContent = 'Available';
+    status.className = 'integration-status ready';
     card.classList.remove('is-connected');
 
     const connect = document.createElement('button');
@@ -966,7 +1004,7 @@
     actions.appendChild(connect);
     const hint = document.createElement('p');
     hint.className = 'integration-hint';
-    hint.textContent = 'Choose daily or weekly — we’ll email a summary of open comments.';
+    hint.textContent = 'Choose daily or weekly — we’ll email a calm summary of open comments.';
     actions.appendChild(hint);
   }
 
@@ -978,7 +1016,7 @@
       const p = integrations[id];
       if (!p) return;
       const card = document.createElement('article');
-      card.className = `integration-card${p.connected ? ' is-connected' : ''}${p.comingSoon ? ' is-soon' : ''}`;
+      card.className = `integration-card${p.connected ? ' is-connected' : ''}${p.comingSoon ? ' is-soon' : ''}${!p.comingSoon && !p.available && id !== 'github' ? ' is-blocked' : ''}`;
       card.id = `card-${id}`;
 
       const top = document.createElement('div');
@@ -986,42 +1024,48 @@
 
       const logo = document.createElement('div');
       logo.className = 'integration-logo brand';
-      logo.style.setProperty('--logo-accent', p.color || '#B8FF54');
-      const mark = Icons.brand?.(id, 26) || (id === 'github' ? Icons.svg('github', 26) : '');
+      logo.style.setProperty('--logo-accent', p.color || '#5B7CFA');
+      const mark = Icons.brand?.(id, 30) || (id === 'github' ? Icons.svg('github', 30) : '');
       if (mark) logo.innerHTML = mark;
       else logo.textContent = String(p.name || '?').slice(0, 1).toUpperCase();
 
       const meta = document.createElement('div');
       meta.className = 'integration-meta';
-      meta.innerHTML = `<h2></h2><p></p>`;
-      meta.querySelector('h2').textContent = p.name;
-      meta.querySelector('p').textContent = p.blurb || '';
-
+      const titleRow = document.createElement('div');
+      titleRow.className = 'integration-title-row';
+      const title = document.createElement('h2');
+      title.textContent = p.name;
       const status = document.createElement('span');
       status.className = 'integration-status';
       if (p.comingSoon) {
         status.classList.add('soon');
         status.textContent = 'Coming soon';
       } else if (!p.available && id !== 'github') {
-        status.classList.add('warn');
-        status.textContent = 'Not configured';
+        status.classList.add('muted');
+        status.textContent = 'Setup needed';
       } else if (p.connected) {
         status.classList.add('on');
         status.textContent = 'Connected';
       } else if (id === 'github') {
-        status.textContent = 'In review';
+        status.classList.add('ready');
+        status.textContent = 'Ready in review';
       } else {
-        status.textContent = 'Not connected';
+        status.classList.add('ready');
+        status.textContent = 'Available';
       }
+      titleRow.append(title, status);
+      const blurb = document.createElement('p');
+      blurb.textContent = p.blurb || '';
+      meta.append(titleRow, blurb);
 
-      top.append(logo, meta, status);
+      top.append(logo, meta);
 
       const details = document.createElement('div');
       details.className = 'integration-details';
       details.hidden = true;
       if (p.connected && p.destination) {
         details.hidden = false;
-        details.textContent = `Tasks go to ${p.destination}`;
+        details.textContent = `New tasks go to ${p.destination}`;
       } else if (id === 'github' && p.note) {
         details.hidden = false;
         details.textContent = p.note;
@@ -1040,12 +1084,12 @@
       } else if (id === 'github') {
         const hint = document.createElement('p');
         hint.className = 'integration-hint';
-        hint.textContent = 'Use “Create issue” on a comment when a GitHub repo is linked.';
+        hint.textContent = 'Link a GitHub repo on the project, then create an issue from any comment.';
         actions.appendChild(hint);
       } else if (!p.available) {
         const hint = document.createElement('p');
         hint.className = 'integration-hint';
-        hint.textContent = `Add ${String(id).toUpperCase()}_CLIENT_ID and _CLIENT_SECRET on the server to enable one-click connect.`;
+        hint.textContent = `${p.name} isn’t enabled for this workspace yet. Ask your admin to turn it on, then connect here.`;
         actions.appendChild(hint);
       } else if (p.connected) {
         const reconnect = document.createElement('button');
@@ -1081,7 +1125,7 @@
         actions.appendChild(connect);
         const hint = document.createElement('p');
         hint.className = 'integration-hint';
-        hint.textContent = 'Then use Create task on any review comment.';
+        hint.textContent = 'After connecting, use Create task on any review comment.';
         actions.appendChild(hint);
       }
 
@@ -1119,7 +1163,7 @@
       const messages = {
         connected: ['ok', 'Slack connected. You’ll get review notifications in the channel you picked.'],
         denied: ['err', 'Slack connection was cancelled.'],
-        not_configured: ['err', 'Slack OAuth is not configured on this server yet.'],
+        not_configured: ['err', 'Slack isn’t enabled for this workspace yet. Ask your admin to turn it on.'],
         forbidden: ['err', 'Your account cannot connect integrations.'],
         invalid_state: ['err', 'That Slack link expired. Try Connect again.'],
         error: ['err', reason ? `Could not connect Slack: ${reason}` : 'Could not connect Slack. Try again.'],
@@ -1131,7 +1175,7 @@
       const messages = {
         pick: ['ok', 'Microsoft signed in. Choose a Team channel to finish.'],
         denied: ['err', 'Microsoft connection was cancelled.'],
-        not_configured: ['err', 'Teams OAuth is not configured on this server yet.'],
+        not_configured: ['err', 'Teams sign-in isn’t enabled for this workspace yet. You can still connect with a webhook.'],
         forbidden: ['err', 'Your account cannot connect integrations.'],
         invalid_state: ['err', 'That Microsoft link expired. Try Connect again.'],
         error: ['err', reason ? `Could not connect Teams: ${reason}` : 'Could not connect Teams. Try again.'],

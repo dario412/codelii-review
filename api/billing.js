@@ -22,6 +22,8 @@ import {
   syncFromStripe,
   trialAvailable,
   applySubscription,
+  domainTeammates,
+  stripeAccountSummary,
 } from './lib/billing.js';
 
 export async function OPTIONS() {
@@ -100,7 +102,20 @@ export async function GET(request) {
     const loaded = await loadAccount(request);
     if (loaded.error) return loaded.error;
     // With billing switched off nobody is blocked — useful for self-hosting.
-    return json({ configured: false, billing: { ...publicBilling(loaded.account), entitled: true } });
+    const details = new URL(request.url).searchParams.get('details') === '1';
+    const payload = {
+      configured: false,
+      billing: { ...publicBilling(loaded.account), entitled: true },
+    };
+    if (details) {
+      payload.team = domainTeammates(loaded.core, loaded.account);
+      payload.summary = {
+        billingEmail: loaded.account.email || null,
+        card: null,
+        upcomingInvoice: null,
+      };
+    }
+    return json(payload);
   }
 
   const { core, account, error } = await loadAccount(request);
@@ -142,11 +157,19 @@ export async function GET(request) {
 
   if (changed) await saveCore(core);
 
-  return json({
+  const details = new URL(request.url).searchParams.get('details') === '1';
+  const payload = {
     configured: true,
     testMode: isTestMode(),
     billing: publicBilling(account),
-  });
+  };
+
+  if (details) {
+    payload.team = domainTeammates(core, account);
+    payload.summary = await stripeAccountSummary(account);
+  }
+
+  return json(payload);
 }
 
 export async function POST(request) {
@@ -195,6 +218,7 @@ export async function POST(request) {
       const customerId = await ensureCustomer(core, account);
       const withTrial = trialAvailable(account);
       const site = siteUrl();
+      const returnPage = body.returnTo === 'account' ? 'account.html' : 'dashboard.html';
 
       const session = await stripe().checkout.sessions.create(
         {
@@ -214,8 +238,8 @@ export async function POST(request) {
           allow_promotion_codes: true,
           customer_update: { name: 'auto', address: 'auto' },
           metadata: { userId: account.id },
-          success_url: `${site}/dashboard.html?billing=success&session_id={CHECKOUT_SESSION_ID}`,
-          cancel_url: `${site}/dashboard.html?billing=cancelled`,
+          success_url: `${site}/${returnPage}?billing=success&session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${site}/${returnPage}?billing=cancelled`,
         },
         // Collapses double-clicks into one session without pinning a user to a
         // stale URL forever.
@@ -235,7 +259,7 @@ export async function POST(request) {
       try {
         const portal = await stripe().billingPortal.sessions.create({
           customer: customerId,
-          return_url: `${siteUrl()}/dashboard.html?billing=return`,
+          return_url: `${siteUrl()}/account.html?billing=return`,
         });
         return json({ url: portal.url });
       } catch (err) {
