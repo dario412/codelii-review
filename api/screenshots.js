@@ -7,6 +7,17 @@ export async function OPTIONS() {
   return corsOptions('GET, POST, DELETE, OPTIONS');
 }
 
+/** Resolve a top-level comment or a reply by id. */
+function findTarget(store, id) {
+  const comment = store.comments.find((c) => c.id === id);
+  if (comment) return { comment, reply: null };
+  for (const c of store.comments) {
+    const reply = (c.replies || []).find((r) => r.id === id);
+    if (reply) return { comment: c, reply };
+  }
+  return null;
+}
+
 export async function GET(request) {
   const user = await getUser(request);
   if (!user) return json({ error: 'Not authenticated' }, 401);
@@ -21,8 +32,7 @@ export async function GET(request) {
   if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
 
   const store = await getProjectStore(projectId);
-  const comment = store.comments.find((c) => c.id === commentId);
-  if (!comment) return json({ error: 'Not found' }, 404);
+  if (!findTarget(store, commentId)) return json({ error: 'Not found' }, 404);
 
   const buffer = await readScreenshot(commentId);
   if (!buffer) return json({ error: 'Screenshot not found' }, 404);
@@ -54,8 +64,8 @@ export async function POST(request) {
   if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
 
   const store = await getProjectStore(projectId);
-  const comment = store.comments.find((c) => c.id === commentId);
-  if (!comment) return json({ error: 'Comment not found' }, 404);
+  const target = findTarget(store, commentId);
+  if (!target) return json({ error: 'Comment not found' }, 404);
 
   const base64 = image.includes(',') ? image.split(',')[1] : image;
   const buffer = Buffer.from(base64, 'base64');
@@ -65,7 +75,8 @@ export async function POST(request) {
   }
 
   await saveScreenshot(commentId, buffer);
-  comment.screenshot = true;
+  if (target.reply) target.reply.screenshot = true;
+  else target.comment.screenshot = true;
   await saveProjectStore(projectId, store);
 
   return json({ ok: true, commentId }, 201);
@@ -85,14 +96,17 @@ export async function DELETE(request) {
   if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
 
   const store = await getProjectStore(projectId);
-  const comment = store.comments.find((c) => c.id === commentId);
-  if (!comment) return json({ error: 'Not found' }, 404);
-  if (comment.authorId !== user.id) {
+  const target = findTarget(store, commentId);
+  if (!target) return json({ error: 'Not found' }, 404);
+
+  const authorId = target.reply?.authorId || target.comment.authorId;
+  if (authorId !== user.id) {
     return json({ error: 'Only the author can delete' }, 403);
   }
 
   await deleteScreenshot(commentId);
-  comment.screenshot = false;
+  if (target.reply) target.reply.screenshot = false;
+  else target.comment.screenshot = false;
   await saveProjectStore(projectId, store);
 
   return json({ ok: true });

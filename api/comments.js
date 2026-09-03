@@ -60,8 +60,9 @@ export async function POST(request) {
   const parentId = (body.parentId || '').trim();
   const text = (body.text || '').trim();
   const tags = Array.isArray(body.tags) ? body.tags : [];
+  const hasImage = body.hasImage === true;
 
-  if (!text) return json({ error: 'Comment text is required' }, 400);
+  if (!text && !hasImage) return json({ error: 'Comment text is required' }, 400);
 
   const store = await getProjectStore(projectId);
 
@@ -81,6 +82,7 @@ export async function POST(request) {
         email: (t.email || '').toLowerCase(),
         name: t.name || t.email || '',
       })),
+      screenshot: false,
       createdAt: new Date().toISOString(),
     };
 

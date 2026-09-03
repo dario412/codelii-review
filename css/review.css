@@ -1224,7 +1224,10 @@ body.review-sidebar-open {
 }
 
 .review-sidebar-item {
-  padding: 14px 14px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 12px 12px 10px;
   border-radius: 12px;
   cursor: pointer;
   border: 1px solid transparent;
@@ -1244,6 +1247,151 @@ body.review-sidebar-open {
   background: #fff;
   border-color: rgba(91, 124, 250, 0.28);
   box-shadow: 0 0 0 1px rgba(91, 124, 250, 0.08), 0 4px 14px rgba(45, 49, 66, 0.06);
+}
+
+.review-sidebar-check {
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  border: 1.5px solid #D0D4E0;
+  background: #fff;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.review-sidebar-check:hover {
+  border-color: var(--brand-accent);
+}
+
+.review-sidebar-check.is-on {
+  background: var(--brand-accent);
+  border-color: var(--brand-accent);
+}
+
+.review-sidebar-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.review-sidebar-bulk {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(91, 124, 250, 0.22);
+  background: linear-gradient(180deg, #F7F9FF, #EEF2FF);
+}
+
+.review-sidebar-bulk-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.review-sidebar-bulk-count {
+  font-size: 12px;
+  font-weight: 750;
+  color: var(--brand-text);
+}
+
+.review-sidebar-bulk-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand-accent);
+  cursor: pointer;
+}
+
+.review-sidebar-bulk-link:hover {
+  text-decoration: underline;
+}
+
+.review-sidebar-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.review-sidebar-bulk-actions .review-btn {
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.review-selection-bar {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translate(-50%, 24px);
+  z-index: 10050;
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--brand-line);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 40px rgba(45, 49, 66, 0.18);
+  backdrop-filter: blur(12px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.review-selection-bar.open {
+  display: flex;
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+
+.review-selection-count {
+  font-size: 13px;
+  font-weight: 750;
+  color: var(--brand-text);
+  white-space: nowrap;
+}
+
+.review-selection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.review-selection-actions .review-btn {
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.review-pin-select {
+  position: absolute;
+  top: -6px;
+  left: -6px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1.5px solid #fff;
+  background: #C5CAD6;
+  color: #fff;
+  padding: 0;
+  cursor: pointer;
+  z-index: 2;
+  box-shadow: 0 1px 4px rgba(45, 49, 66, 0.2);
+}
+
+.review-pin-select.is-on {
+  background: var(--brand-accent);
 }
 
 .review-sidebar-item-top {
@@ -2094,6 +2242,52 @@ body.review-comment-mode .review-bubble * { cursor: auto !important; }
 .review-reply-author { font-size: 12px; font-weight: 700; color: var(--brand-text); }
 .review-reply-time { font-size: 11px; color: #6B6E75; }
 .review-reply-text { font-size: 13px; line-height: 1.5; color: #2A2D34; white-space: pre-wrap; }
+
+.review-reply .review-screenshot-wrap {
+  margin-top: 8px;
+}
+
+.review-reply-image-preview-wrap {
+  margin-top: 10px;
+}
+
+.review-reply-image-preview {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--brand-line);
+  background: #F3F5F4;
+}
+
+.review-reply-image-preview img {
+  display: block;
+  max-width: 220px;
+  max-height: 140px;
+  width: auto;
+  height: auto;
+  object-fit: cover;
+}
+
+.review-reply-image-remove {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(45, 49, 66, 0.72);
+  color: #fff;
+  cursor: pointer;
+}
+
+.review-reply-image-remove:hover {
+  background: rgba(45, 49, 66, 0.9);
+}
 
 /* @mention dropdown */
 .review-mention-dropdown {

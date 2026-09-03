@@ -714,7 +714,7 @@
     return comments
       .map((c) => {
         const replies = (c.replies || [])
-          .map((r) => `${r.id}:${r.createdAt}`)
+          .map((r) => `${r.id}:${r.screenshot ? 1 : 0}:${r.createdAt}`)
           .join(',');
         return `${c.id}:${c.resolved}:${c.hidden ? 1 : 0}:${c.assigneeId || ''}:${c.githubIssueNumber || ''}:${c.screenshot}:${c.createdAt}:${replies}`;
       })
@@ -1575,15 +1575,15 @@
     return wrap;
   }
 
-  function attachScreenshotBlock(container, comment) {
+  function attachScreenshotBlock(container, comment, { label = 'Snapshot when commented', alt = 'Page snapshot at time of comment' } = {}) {
     if (!comment.screenshot) return;
 
     const wrap = el('div', { class: 'review-screenshot-wrap' });
-    wrap.appendChild(el('div', { class: 'review-screenshot-label' }, ['Snapshot when commented']));
-    const loading = el('div', { class: 'review-screenshot-loading' }, ['Loading snapshot…']);
+    wrap.appendChild(el('div', { class: 'review-screenshot-label' }, [label]));
+    const loading = el('div', { class: 'review-screenshot-loading' }, ['Loading image…']);
     const img = el('img', {
       class: 'review-screenshot-img',
-      alt: 'Page snapshot at time of comment',
+      alt,
     });
 
     wrap.appendChild(loading);
@@ -1605,6 +1605,92 @@
         openScreenshotLightbox(url);
       };
     });
+  }
+
+  async function blobToJpeg(blob) {
+    if (!blob) return null;
+    if (blob.type === 'image/jpeg' || blob.type === 'image/jpg') return blob;
+    try {
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, 0, 0);
+      bitmap.close?.();
+      return await new Promise((resolve) => {
+        canvas.toBlob((out) => resolve(out), 'image/jpeg', 0.88);
+      });
+    } catch {
+      return blob;
+    }
+  }
+
+  function bindReplyImagePaste(textarea, previewEl, pending) {
+    const renderPreview = () => {
+      previewEl.innerHTML = '';
+      previewEl.hidden = !pending.blob;
+      if (!pending.blob || !pending.url) return;
+
+      const thumb = el('div', { class: 'review-reply-image-preview' }, [
+        el('img', { src: pending.url, alt: 'Image to attach' }),
+        el('button', {
+          type: 'button',
+          class: 'review-reply-image-remove',
+          'aria-label': 'Remove image',
+          onclick: (e) => {
+            e.stopPropagation();
+            if (pending.url) URL.revokeObjectURL(pending.url);
+            pending.blob = null;
+            pending.url = null;
+            renderPreview();
+          },
+        }, [icon('x', 12)]),
+      ]);
+      previewEl.appendChild(thumb);
+    };
+
+    const setImage = async (file) => {
+      if (!file || !file.type.startsWith('image/')) return;
+      if (file.size > 4 * 1024 * 1024) {
+        alert('Image is too large (max 4 MB).');
+        return;
+      }
+      const jpeg = await blobToJpeg(file);
+      if (!jpeg) return;
+      if (pending.url) URL.revokeObjectURL(pending.url);
+      pending.blob = jpeg;
+      pending.url = URL.createObjectURL(jpeg);
+      renderPreview();
+    };
+
+    textarea.addEventListener('paste', (e) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const file = item.getAsFile();
+          if (file) setImage(file);
+          break;
+        }
+      }
+    });
+
+    textarea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    textarea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const file = e.dataTransfer?.files?.[0];
+      if (file) setImage(file);
+    });
+
+    return { renderPreview, setImage, pending };
   }
 
   function openScreenshotLightbox(url) {
@@ -2108,10 +2194,10 @@
     layer.innerHTML = '';
     layer.style.height = `${document.documentElement.scrollHeight}px`;
 
-    // Drop selections that no longer exist / are resolved
-    const openIds = new Set(pageComments().map((c) => c.id));
+    // Drop selections for comments that no longer exist
+    const knownIds = new Set(state.comments.map((c) => c.id));
     [...state.selectedIds].forEach((id) => {
-      if (!openIds.has(id)) state.selectedIds.delete(id);
+      if (!knownIds.has(id)) state.selectedIds.delete(id);
     });
 
     const comments = pageComments();
@@ -2122,10 +2208,10 @@
       const top = (c.y / 100) * docH;
       const isSelected = state.selectedIds.has(c.id);
 
-      const selectBtn = canUseCursorTools ? el('button', {
+      const selectBtn = el('button', {
         type: 'button',
         class: `review-pin-select${isSelected ? ' is-on' : ''}`,
-        title: isSelected ? 'Deselect' : 'Select for Fix with Cursor',
+        title: isSelected ? 'Deselect' : 'Select',
         'aria-label': isSelected ? 'Deselect comment' : 'Select comment',
         'aria-pressed': isSelected ? 'true' : 'false',
         onclick: (e) => {
@@ -2133,7 +2219,7 @@
           e.preventDefault();
           toggleCommentSelected(c.id);
         },
-      }, [isSelected ? icon('check', 12) : null].filter(Boolean)) : null;
+      }, [isSelected ? icon('check', 12) : null].filter(Boolean));
 
       const pin = el('div', {
         class: [
@@ -2146,7 +2232,7 @@
         title: c.hidden ? 'Hidden from collaborators' : undefined,
         onclick: (e) => {
           e.stopPropagation();
-          if (canUseCursorTools && (e.metaKey || e.ctrlKey || e.shiftKey)) {
+          if (e.metaKey || e.ctrlKey || e.shiftKey) {
             toggleCommentSelected(c.id);
             return;
           }
@@ -2178,19 +2264,26 @@
     if (state.selectedIds.has(id)) state.selectedIds.delete(id);
     else state.selectedIds.add(id);
     renderPins();
+    renderSidebar();
+    renderSelectionBar();
   }
 
   function clearSelection() {
     state.selectedIds.clear();
     renderPins();
+    renderSidebar();
+    renderSelectionBar();
   }
 
-  function getSelectedComments() {
-    return state.comments.filter((c) => state.selectedIds.has(c.id) && !c.resolved);
+  function getSelectedComments({ openOnly = true } = {}) {
+    return state.comments.filter((c) => {
+      if (!state.selectedIds.has(c.id)) return false;
+      if (openOnly) return !c.resolved;
+      return true;
+    });
   }
 
   function ensureSelectionBar() {
-    if (!canUseCursorTools) return;
     if (document.getElementById('review-selection-bar')) return;
 
     const bar = el('div', { class: 'review-selection-bar', id: 'review-selection-bar' }, [
@@ -2199,6 +2292,7 @@
         el('button', {
           type: 'button',
           class: 'review-btn',
+          id: 'review-select-clear',
           onclick: (e) => {
             e.stopPropagation();
             clearSelection();
@@ -2206,14 +2300,46 @@
         }, btnContent('x', 'Clear', 14)),
         el('button', {
           type: 'button',
-          class: 'review-btn review-btn-fix',
-          id: 'review-fix-selected',
+          class: 'review-btn',
+          id: 'review-resolve-selected',
           onclick: (e) => {
             e.stopPropagation();
-            fixSelectedWithCursor(e.currentTarget);
+            resolveSelectedComments(true);
           },
-        }, btnContent('sparkle', 'Fix selected', 14)),
-      ]),
+        }, btnContent('checkCircle', 'Resolve', 14)),
+        el('button', {
+          type: 'button',
+          class: 'review-btn',
+          id: 'review-reopen-selected',
+          hidden: true,
+          onclick: (e) => {
+            e.stopPropagation();
+            resolveSelectedComments(false);
+          },
+        }, btnContent('reopen', 'Reopen', 14)),
+        canUseCursorTools
+          ? el('button', {
+            type: 'button',
+            class: 'review-btn',
+            id: 'review-copy-selected',
+            onclick: (e) => {
+              e.stopPropagation();
+              copySelectedPrompts(e.currentTarget);
+            },
+          }, btnContent('copy', 'Copy prompts', 14))
+          : null,
+        canUseCursorTools
+          ? el('button', {
+            type: 'button',
+            class: 'review-btn review-btn-fix',
+            id: 'review-fix-selected',
+            onclick: (e) => {
+              e.stopPropagation();
+              fixSelectedWithCursor(e.currentTarget);
+            },
+          }, btnContent('sparkle', 'Fix selected', 14))
+          : null,
+      ].filter(Boolean)),
     ]);
     document.body.appendChild(bar);
   }
@@ -2222,9 +2348,219 @@
     ensureSelectionBar();
     const bar = document.getElementById('review-selection-bar');
     const count = document.getElementById('review-selection-count');
-    const n = getSelectedComments().length;
-    if (count) count.textContent = `${n} selected`;
+    const selected = getSelectedComments({ openOnly: false });
+    const openN = selected.filter((c) => !c.resolved).length;
+    const resolvedN = selected.filter((c) => c.resolved).length;
+    const n = selected.length;
+
+    if (count) {
+      count.textContent = n === 1 ? '1 selected' : `${n} selected`;
+    }
     if (bar) bar.classList.toggle('open', n > 0);
+
+    const resolveBtn = document.getElementById('review-resolve-selected');
+    const reopenBtn = document.getElementById('review-reopen-selected');
+    const copyBtn = document.getElementById('review-copy-selected');
+    const fixBtn = document.getElementById('review-fix-selected');
+
+    if (resolveBtn) {
+      resolveBtn.hidden = openN === 0;
+      resolveBtn.disabled = openN === 0;
+      setButtonContent(resolveBtn, 'checkCircle', openN > 1 ? `Resolve ${openN}` : 'Resolve', 14);
+    }
+    if (reopenBtn) {
+      reopenBtn.hidden = resolvedN === 0;
+      reopenBtn.disabled = resolvedN === 0;
+      setButtonContent(reopenBtn, 'reopen', resolvedN > 1 ? `Reopen ${resolvedN}` : 'Reopen', 14);
+    }
+    if (copyBtn) {
+      copyBtn.disabled = n === 0;
+      setButtonContent(copyBtn, 'copy', n > 1 ? `Copy ${n}` : 'Copy prompts', 14);
+    }
+    if (fixBtn) {
+      const canFix = Boolean(project.repoUrl || project.localPath || project.type === 'github');
+      fixBtn.disabled = openN === 0 || !canFix;
+      setButtonContent(
+        fixBtn,
+        'sparkle',
+        !canFix ? 'Set repo' : openN > 1 ? `Fix ${openN}` : 'Fix selected',
+        14,
+      );
+    }
+
+    renderSidebarBulkBar();
+  }
+
+  function ensureSidebarBulkBar() {
+    const sidebar = document.getElementById('review-sidebar');
+    if (!sidebar) return null;
+    let bar = document.getElementById('review-sidebar-bulk');
+    if (bar) return bar;
+
+    bar = el('div', { class: 'review-sidebar-bulk', id: 'review-sidebar-bulk', hidden: true });
+    const list = document.getElementById('review-sidebar-list');
+    if (list) sidebar.insertBefore(bar, list);
+    else sidebar.appendChild(bar);
+    return bar;
+  }
+
+  function renderSidebarBulkBar() {
+    const bar = ensureSidebarBulkBar();
+    if (!bar) return;
+
+    const selected = getSelectedComments({ openOnly: false });
+    const openN = selected.filter((c) => !c.resolved).length;
+    const resolvedN = selected.filter((c) => c.resolved).length;
+    const visible = sidebarComments();
+    const n = selected.length;
+
+    bar.hidden = n === 0 || state.sidebarTab === 'activity';
+    if (bar.hidden) {
+      bar.innerHTML = '';
+      return;
+    }
+
+    bar.innerHTML = '';
+    bar.appendChild(el('div', { class: 'review-sidebar-bulk-top' }, [
+      el('span', { class: 'review-sidebar-bulk-count' }, [
+        n === 1 ? '1 selected' : `${n} selected`,
+      ]),
+      el('button', {
+        type: 'button',
+        class: 'review-sidebar-bulk-link',
+        onclick: (e) => {
+          e.stopPropagation();
+          const ids = visible.map((c) => c.id);
+          const allOn = ids.length && ids.every((id) => state.selectedIds.has(id));
+          if (allOn) ids.forEach((id) => state.selectedIds.delete(id));
+          else ids.forEach((id) => state.selectedIds.add(id));
+          renderPins();
+          renderSidebar();
+        },
+      }, [
+        visible.length && visible.every((c) => state.selectedIds.has(c.id))
+          ? 'Clear visible'
+          : 'Select visible',
+      ]),
+    ]));
+
+    const actions = el('div', { class: 'review-sidebar-bulk-actions' });
+    if (openN) {
+      actions.appendChild(el('button', {
+        type: 'button',
+        class: 'review-btn review-btn-primary',
+        onclick: (e) => {
+          e.stopPropagation();
+          resolveSelectedComments(true);
+        },
+      }, btnContent('checkCircle', openN > 1 ? `Resolve ${openN}` : 'Resolve', 14)));
+    }
+    if (resolvedN) {
+      actions.appendChild(el('button', {
+        type: 'button',
+        class: 'review-btn',
+        onclick: (e) => {
+          e.stopPropagation();
+          resolveSelectedComments(false);
+        },
+      }, btnContent('reopen', resolvedN > 1 ? `Reopen ${resolvedN}` : 'Reopen', 14)));
+    }
+    if (canUseCursorTools && n) {
+      actions.appendChild(el('button', {
+        type: 'button',
+        class: 'review-btn',
+        onclick: (e) => {
+          e.stopPropagation();
+          copySelectedPrompts(e.currentTarget);
+        },
+      }, btnContent('copy', n > 1 ? `Copy ${n}` : 'Copy prompts', 14)));
+    }
+    if (canUseCursorTools && openN) {
+      actions.appendChild(el('button', {
+        type: 'button',
+        class: 'review-btn review-btn-fix',
+        onclick: (e) => {
+          e.stopPropagation();
+          fixSelectedWithCursor(e.currentTarget);
+        },
+      }, btnContent('sparkle', openN > 1 ? `Fix ${openN}` : 'Fix', 14)));
+    }
+    actions.appendChild(el('button', {
+      type: 'button',
+      class: 'review-btn',
+      onclick: (e) => {
+        e.stopPropagation();
+        clearSelection();
+      },
+    }, btnContent('x', 'Clear', 14)));
+
+    bar.appendChild(actions);
+  }
+
+  async function resolveSelectedComments(resolved) {
+    const targets = state.comments.filter(
+      (c) => state.selectedIds.has(c.id) && Boolean(c.resolved) !== Boolean(resolved),
+    );
+    if (!targets.length) return;
+
+    try {
+      for (const c of targets) {
+        const res = await fetch('/api/comments', {
+          method: 'PATCH',
+          headers: ReviewAuth.headers(),
+          body: JSON.stringify({ id: c.id, projectId, resolved }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to update comment');
+        }
+      }
+      clearSelection();
+      closeBubble();
+      await loadComments();
+      loadActivity();
+      if (resolved) {
+        state.sidebarTab = 'resolved';
+        setSidebarTab('resolved');
+      } else {
+        state.sidebarTab = 'open';
+        setSidebarTab('open');
+      }
+      renderPins();
+      renderSidebar();
+      showPromptToast(
+        resolved
+          ? `Resolved ${targets.length} comment${targets.length === 1 ? '' : 's'}`
+          : `Reopened ${targets.length} comment${targets.length === 1 ? '' : 's'}`,
+      );
+    } catch (err) {
+      alert(err.message || 'Failed to update comments');
+    }
+  }
+
+  async function copySelectedPrompts(btn) {
+    if (!canUseCursorTools) return;
+    if (!window.ReviewPrompts) {
+      alert('Prompt helper failed to load');
+      return;
+    }
+    const selected = getSelectedComments({ openOnly: false });
+    const text = ReviewPrompts.buildCommentsPrompts(selected, project);
+    if (!text) {
+      showPromptToast('No comments selected');
+      return;
+    }
+    try {
+      await ReviewPrompts.copyText(text);
+      flashCopied(btn, 'Copied');
+      showPromptToast(
+        selected.length === 1
+          ? 'Cursor prompt copied'
+          : `${selected.length} Cursor prompts copied`,
+      );
+    } catch (err) {
+      alert(err.message || 'Could not copy');
+    }
   }
 
   function buildBubbleHeader({ authorName, title, trailing }) {
@@ -2336,7 +2672,13 @@
               el('span', { class: 'review-reply-time' }, [formatTime(r.createdAt)]),
             ]),
           ]);
-          replyEl.appendChild(buildCommentTextEl(r.text, r.tags, 'review-reply-text'));
+          if (r.text) {
+            replyEl.appendChild(buildCommentTextEl(r.text, r.tags, 'review-reply-text'));
+          }
+          attachScreenshotBlock(replyEl, r, {
+            label: 'Attached image',
+            alt: 'Reply attachment',
+          });
           return replyEl;
         })),
       ]);
@@ -2345,12 +2687,20 @@
 
     const replyFormWrap = el('div', { class: 'review-reply-form', id: 'review-reply-form-wrap' });
     const replyTagPreview = el('div', { class: 'review-tag-preview', id: 'review-reply-tag-preview' });
+    const replyImagePreview = el('div', {
+      class: 'review-reply-image-preview-wrap',
+      id: 'review-reply-image-preview',
+      hidden: true,
+    });
     const replyTextarea = el('textarea', {
       class: 'review-textarea',
-      placeholder: 'Write a reply… Type @ to tag someone',
+      placeholder: 'Write a reply… Type @ to tag someone, or paste an image',
     });
+    const pendingReplyImage = { blob: null, url: null };
+    bindReplyImagePaste(replyTextarea, replyImagePreview, pendingReplyImage);
 
     replyFormWrap.appendChild(replyTextarea);
+    replyFormWrap.appendChild(replyImagePreview);
     replyFormWrap.appendChild(replyTagPreview);
     replyFormWrap.appendChild(el('div', { class: 'review-bubble-actions' }, [
       el('button', {
@@ -2359,7 +2709,7 @@
         id: 'review-reply-btn',
         onclick: (e) => {
           e.stopPropagation();
-          submitReply(fresh.id, replyTextarea);
+          submitReply(fresh.id, replyTextarea, pendingReplyImage);
         },
       }, btnContent('reply', 'Post reply', 14)),
     ]));
@@ -2884,10 +3234,11 @@
     return 'chat';
   }
 
-  async function submitReply(parentId, textarea) {
+  async function submitReply(parentId, textarea, pendingImage = null) {
     const text = textarea.value.trim();
-    if (!text) {
-      alert('Please enter a reply before posting.');
+    const imageBlob = pendingImage?.blob || null;
+    if (!text && !imageBlob) {
+      alert('Please enter a reply or paste an image before posting.');
       return;
     }
 
@@ -2897,18 +3248,42 @@
       setButtonContent(btn, 'reply', 'Posting…', 14);
     }
 
-    const tags = parseTags(text);
+    const tags = text ? parseTags(text) : [];
 
     try {
       const res = await fetch('/api/comments', {
         method: 'POST',
         headers: ReviewAuth.headers(),
-        body: JSON.stringify({ projectId, parentId, text, tags }),
+        body: JSON.stringify({
+          projectId,
+          parentId,
+          text,
+          tags,
+          hasImage: Boolean(imageBlob),
+        }),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to post reply');
+      }
+
+      const data = await res.json().catch(() => ({}));
+      if (imageBlob && data.reply?.id) {
+        await uploadScreenshot(data.reply.id, imageBlob).catch(() => {});
+        if (data.reply) data.reply.screenshot = true;
+        const local = state.comments.find((c) => c.id === parentId);
+        if (local && data.comment) {
+          Object.assign(local, data.comment);
+          const reply = (local.replies || []).find((r) => r.id === data.reply.id);
+          if (reply) reply.screenshot = true;
+        }
+      }
+
+      if (pendingImage?.url) URL.revokeObjectURL(pendingImage.url);
+      if (pendingImage) {
+        pendingImage.blob = null;
+        pendingImage.url = null;
       }
 
       await loadComments();
@@ -3049,6 +3424,7 @@
         });
       }
       updateSidebarActionButtons(openItems.length);
+      renderSidebarBulkBar();
       return;
     }
 
@@ -3070,12 +3446,14 @@
         ]),
       ]));
       updateSidebarActionButtons(openItems.length);
+      renderSidebarBulkBar();
       return;
     }
 
     list.innerHTML = '';
     items.forEach((c) => {
       const replyCount = c.replies?.length || 0;
+      const isSelected = state.selectedIds.has(c.id);
       const textEl = el('div', { class: 'review-sidebar-item-text' });
       appendFormattedCommentText(textEl, c.text, c.tags, true);
 
@@ -3121,7 +3499,7 @@
         ]));
       }
 
-      const actions = !canUseCursorTools ? null : el('div', {
+      const actions = !canUseCursorTools || c.resolved ? null : el('div', {
         class: 'review-sidebar-item-actions',
         onclick: (e) => e.stopPropagation(),
       }, [
@@ -3152,15 +3530,20 @@
         ]));
       }
 
-      const item = el('div', {
-        class: [
-          'review-sidebar-item',
-          state.highlightId === c.id ? 'active' : '',
-          state.selectedIds.has(c.id) ? 'selected' : '',
-          c.hidden ? 'is-hidden' : '',
-        ].filter(Boolean).join(' '),
-        onclick: () => navigateToComment(c),
-      }, [
+      const check = el('button', {
+        type: 'button',
+        class: `review-sidebar-check${isSelected ? ' is-on' : ''}`,
+        title: isSelected ? 'Deselect' : 'Select',
+        'aria-label': isSelected ? 'Deselect comment' : 'Select comment',
+        'aria-pressed': isSelected ? 'true' : 'false',
+        onclick: (e) => {
+          e.stopPropagation();
+          e.preventDefault();
+          toggleCommentSelected(c.id);
+        },
+      }, [isSelected ? icon('check', 12) : null].filter(Boolean));
+
+      const main = el('div', { class: 'review-sidebar-item-main' }, [
         el('div', { class: 'review-sidebar-item-top' }, [
           el('div', { class: 'review-sidebar-item-page' }, [formatPage(c.page)]),
           el('span', { class: 'review-sidebar-item-time' }, [formatTime(c.createdAt)]),
@@ -3168,12 +3551,32 @@
         textEl,
         badges.childNodes.length ? badges : null,
         el('div', { class: 'review-sidebar-item-meta' }, metaBits),
-        !c.resolved ? actions : null,
+        actions,
       ].filter(Boolean));
+
+      const item = el('div', {
+        class: [
+          'review-sidebar-item',
+          state.highlightId === c.id ? 'active' : '',
+          isSelected ? 'selected' : '',
+          c.hidden ? 'is-hidden' : '',
+        ].filter(Boolean).join(' '),
+        onclick: (e) => {
+          if (e.metaKey || e.ctrlKey || e.shiftKey) {
+            toggleCommentSelected(c.id);
+            return;
+          }
+          navigateToComment(c);
+        },
+      }, [
+        check,
+        main,
+      ]);
       list.appendChild(item);
     });
 
     updateSidebarActionButtons(openItems.length);
+    renderSidebarBulkBar();
   }
 
   function updateSidebarActionButtons(openCount) {
