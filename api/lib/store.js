@@ -112,7 +112,9 @@ async function readJsonBlob(path, empty) {
   const opts = blobOpts();
   try {
     const result = await get(path, opts);
-    if (!result || result.statusCode !== 200 || !result.stream) {
+    // @vercel/blob get() returns an object with a stream when found,
+    // or throws BlobNotFoundError when not found. statusCode is not reliable.
+    if (!result || !result.stream) {
       return structuredClone(empty);
     }
     const text = await streamToText(result.stream);
