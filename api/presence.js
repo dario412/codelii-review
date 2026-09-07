@@ -1,4 +1,10 @@
-import { getCore, getProjectStore, saveProjectStore, findProject, isMember } from './lib/store.js';
+import {
+  getCore,
+  getProjectPresence,
+  saveProjectPresence,
+  findProject,
+  isMember,
+} from './lib/store.js';
 import { getUser } from './lib/auth.js';
 import { json, corsOptions } from './lib/http.js';
 
@@ -33,11 +39,11 @@ export async function GET(request) {
   const project = findProject(core, projectId);
   if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
 
-  const store = await getProjectStore(projectId);
+  const presence = await getProjectPresence(projectId);
   const now = Date.now();
   const online = [];
 
-  for (const entry of Object.values(store.presence || {})) {
+  for (const entry of Object.values(presence || {})) {
     if (!entry?.lastSeen) continue;
     if (now - new Date(entry.lastSeen).getTime() > ACTIVE_MS) continue;
     if (entry.email === user.email.toLowerCase()) continue;
@@ -68,16 +74,16 @@ export async function POST(request) {
   const project = findProject(core, projectId);
   if (!project || !isMember(project, user.id)) return json({ error: 'Forbidden' }, 403);
 
-  const store = await getProjectStore(projectId);
-  if (!store.presence) store.presence = {};
+  // Presence is stored in a separate blob so heartbeats can never wipe comments.
+  const presence = { ...(await getProjectPresence(projectId)) };
 
   const email = user.email.toLowerCase();
-  const prev = store.presence[email] || {};
+  const prev = presence[email] || {};
   const page = normalizePage(body.page);
   const x = clampPct(body.x);
   const y = clampPct(body.y);
 
-  store.presence[email] = {
+  presence[email] = {
     id: user.id,
     name: user.name,
     email,
@@ -88,12 +94,12 @@ export async function POST(request) {
   };
 
   const now = Date.now();
-  for (const [key, entry] of Object.entries(store.presence)) {
-    if (now - new Date(entry.lastSeen).getTime() > ACTIVE_MS * 2) {
-      delete store.presence[key];
+  for (const [key, entry] of Object.entries(presence)) {
+    if (!entry?.lastSeen || now - new Date(entry.lastSeen).getTime() > ACTIVE_MS * 2) {
+      delete presence[key];
     }
   }
 
-  await saveProjectStore(projectId, store);
+  await saveProjectPresence(projectId, presence);
   return json({ ok: true });
 }

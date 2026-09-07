@@ -317,7 +317,7 @@ export async function DELETE(request) {
   } catch {
     /* ignore */
   }
-  await saveProjectStore(projectId, store);
+  await saveProjectStore(projectId, store, { allowEmptyComments: true });
   return json({ ok: true });
 }
 

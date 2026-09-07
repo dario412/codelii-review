@@ -1,4 +1,4 @@
-import { put, get, del, list } from '@vercel/blob';
+import { put, get, del, list, BlobNotFoundError } from '@vercel/blob';
 
 const CORE_PATH = 'review-data/core.json';
 const EMPTY_CORE = { users: [], projects: [], clients: [], stripeEvents: [] };
@@ -107,13 +107,21 @@ function localDataDir() {
   });
 }
 
+function isNotFound(err) {
+  return (
+    err instanceof BlobNotFoundError ||
+    err?.name === 'BlobNotFoundError' ||
+    /not found|404/i.test(String(err?.message || ''))
+  );
+}
+
 async function readJsonBlob(path, empty) {
   requireBlobStorage();
   const opts = blobOpts();
   try {
     const result = await get(path, opts);
-    // @vercel/blob get() returns an object with a stream when found,
-    // or throws BlobNotFoundError when not found. statusCode is not reliable.
+    // @vercel/blob get() returns { stream } when found, or throws when missing.
+    // Never treat transient failures as empty — that previously wiped project data.
     if (!result || !result.stream) {
       return structuredClone(empty);
     }
@@ -121,8 +129,9 @@ async function readJsonBlob(path, empty) {
     if (!text) return structuredClone(empty);
     return JSON.parse(text);
   } catch (err) {
+    if (isNotFound(err)) return structuredClone(empty);
     console.error(`[store] read ${path} failed:`, err.message);
-    return structuredClone(empty);
+    throw err;
   }
 }
 
@@ -191,8 +200,16 @@ function projectPath(projectId) {
   return `review-data/projects/${projectId}.json`;
 }
 
+function projectPresencePath(projectId) {
+  return `review-data/projects/${projectId}.presence.json`;
+}
+
 function projectLocalRel(projectId) {
   return `projects/${projectId}.json`;
+}
+
+function projectPresenceLocalRel(projectId) {
+  return `projects/${projectId}.presence.json`;
 }
 
 export async function getProjectStore(projectId) {
@@ -205,12 +222,60 @@ export async function getProjectStore(projectId) {
   return normalizeProject(raw);
 }
 
-export async function saveProjectStore(projectId, data) {
+/**
+ * Persist project data. Refuses accidental comment wipes: if the payload has
+ * zero comments but blob already has comments, keep the existing comments
+ * unless options.allowEmptyComments is set (used by explicit delete).
+ * Presence is stored separately — do not rely on this for presence heartbeats.
+ */
+export async function saveProjectStore(projectId, data, options = {}) {
   const payload = normalizeProject(data);
+  // Presence lives in its own blob; keep project JSON free of heartbeat churn.
+  payload.presence = {};
+
   if (useBlob()) {
+    try {
+      const existing = await readJsonBlob(projectPath(projectId), EMPTY_PROJECT);
+      const existingComments = Array.isArray(existing.comments) ? existing.comments : [];
+      if (
+        existingComments.length > 0 &&
+        payload.comments.length === 0 &&
+        !options.allowEmptyComments
+      ) {
+        console.error(
+          `[store] refused comment wipe for ${projectId}: existing=${existingComments.length}`
+        );
+        payload.comments = existingComments;
+      }
+    } catch (err) {
+      // If we cannot verify existing comments, do not write an empty comment list.
+      if (payload.comments.length === 0 && !options.allowEmptyComments) {
+        console.error(`[store] skip empty save for ${projectId}: ${err.message}`);
+        throw err;
+      }
+    }
     await writeJsonBlob(projectPath(projectId), payload);
   } else {
     await writeLocalJson(projectLocalRel(projectId), payload);
+  }
+  return payload;
+}
+
+export async function getProjectPresence(projectId) {
+  if (useBlob()) {
+    const raw = await readJsonBlob(projectPresencePath(projectId), {});
+    return raw && typeof raw === 'object' ? raw : {};
+  }
+  const raw = await readLocalJson(projectPresenceLocalRel(projectId), {});
+  return raw && typeof raw === 'object' ? raw : {};
+}
+
+export async function saveProjectPresence(projectId, presence) {
+  const payload = presence && typeof presence === 'object' ? presence : {};
+  if (useBlob()) {
+    await writeJsonBlob(projectPresencePath(projectId), payload);
+  } else {
+    await writeLocalJson(projectPresenceLocalRel(projectId), payload);
   }
   return payload;
 }
@@ -276,7 +341,7 @@ export async function getProjectFile(projectId, relPath) {
     const path = `projects/${projectId}/files/${clean}`;
     try {
       const result = await get(path, blobOpts());
-      if (!result || result.statusCode !== 200 || !result.stream) return null;
+      if (!result || !result.stream) return null;
       return {
         buffer: await streamToBuffer(result.stream),
         contentType: result.blob?.contentType || guessContentType(clean),
