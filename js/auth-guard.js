@@ -37,7 +37,7 @@
       try {
         await fetch('/api/auth/login', {
           method: 'DELETE',
-          headers: { Authorization: `Bearer ${window.ReviewAuth.getToken()}` },
+          headers: window.ReviewAuth.headers(),
         });
       } catch {
         /* ignore */
@@ -46,13 +46,17 @@
       window.location.href = LOGIN_PATH;
     },
     headers() {
+      const token = window.ReviewAuth.getToken() || '';
       return {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${window.ReviewAuth.getToken()}`,
+        Authorization: `Bearer ${token}`,
+        'X-Review-Token': token,
       };
     },
     isLoggedIn() {
-      return Boolean(localStorage.getItem(TOKEN_KEY) && localStorage.getItem(USER_KEY));
+      const token = localStorage.getItem(TOKEN_KEY);
+      const user = localStorage.getItem(USER_KEY);
+      return Boolean(token && user && token !== 'null' && token !== 'undefined');
     },
   };
 

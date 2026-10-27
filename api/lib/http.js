@@ -3,7 +3,8 @@ export function corsHeaders(methods = 'GET, POST, PATCH, DELETE, OPTIONS') {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': methods,
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Review-Token',
+    'Cache-Control': 'private, no-store',
   };
 }
 

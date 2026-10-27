@@ -45,7 +45,7 @@
     <div id="google-section" hidden>
       <div class="divider">or</div>
       <div class="google-wrap" id="google-btn"></div>
-      <p class="auth-note" id="google-note" hidden>Google sign-in appears when GOOGLE_CLIENT_ID is configured.</p>
+      <p class="auth-note" id="google-note" hidden>Google sign-in is unavailable right now.</p>
     </div>
 
     <!-- Single-button state: already signed in, or an email invite -->
@@ -112,23 +112,26 @@
   async function signedInFlow() {
     const res = await fetch(`/api/invites?token=${encodeURIComponent(token)}`, {
       headers: ReviewAuth.headers(),
+      credentials: 'same-origin',
     });
+    if (res.status === 401) return false;
     const data = await res.json();
     if (!res.ok) {
       sub.textContent = 'We couldn’t open this link.';
       showError(data.error || 'Invalid invite');
-      return;
+      return true;
     }
     if (data.status === 'accepted') {
       sub.textContent = `You’re already in “${data.projectName}”.`;
       btn.hidden = false;
       btn.textContent = 'Open dashboard';
       btn.onclick = () => (location.href = '/dashboard.html');
-      return;
+      return true;
     }
     sub.textContent = `You’ve been invited to “${data.projectName}”.`;
     btn.hidden = false;
     btn.onclick = acceptAsMember;
+    return true;
   }
 
   /* ---------- guest path: name + email, or Google ---------- */
@@ -237,21 +240,7 @@
 
   /* ---------- decide which gate to show ---------- */
 
-  async function start() {
-    if (ReviewAuth.isLoggedIn()) {
-      await signedInFlow();
-      return;
-    }
-
-    const res = await fetch(`/api/share?token=${encodeURIComponent(token)}`);
-    const data = await res.json();
-
-    if (!res.ok) {
-      sub.textContent = 'We couldn’t open this link.';
-      showError(data.error || 'This link is not valid');
-      return;
-    }
-
+  function showPublicGate(data) {
     if (data.type === 'link' && data.allowed) {
       showGuestGate(data.projectName);
       return;
@@ -268,6 +257,26 @@
     btn.hidden = false;
     btn.textContent = 'Sign in to continue';
     btn.onclick = () => (location.href = signInHref());
+  }
+
+  async function start() {
+    // The link itself is the credential. A stale saved session must not block it.
+    const res = await fetch(`/api/share?token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+
+    if (!res.ok) {
+      sub.textContent = 'We couldn’t open this link.';
+      showError(data.error || 'This link is not valid');
+      return;
+    }
+
+    if (ReviewAuth.isLoggedIn()) {
+      const accepted = await signedInFlow();
+      if (accepted) return;
+      ReviewAuth.clear();
+    }
+
+    showPublicGate(data);
   }
 
   start().catch((e) => {

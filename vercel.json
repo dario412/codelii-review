@@ -1,7 +1,6 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
     { "source": "/join", "destination": "/join.html" },
     { "source": "/integrations", "destination": "/integrations.html" },
     { "source": "/p/:projectId", "destination": "/api/proxy?projectId=:projectId&path=" },
@@ -35,7 +34,7 @@
       "headers": [
         { "key": "Access-Control-Allow-Origin", "value": "*" },
         { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PATCH, DELETE, OPTIONS" },
-        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization, X-Review-Token" }
       ]
     }
   ]

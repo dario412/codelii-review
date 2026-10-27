@@ -40,19 +40,41 @@ export async function verifyToken(token) {
   }
 }
 
-export function parseAuth(req) {
-  const header = req.headers.get('authorization') || '';
-  if (header.startsWith('Bearer ')) {
-    return header.slice(7);
+function remember(tokens, value) {
+  if (!value) return;
+  let token = String(value).trim();
+  if (token.toLowerCase().startsWith('bearer ')) token = token.slice(7).trim();
+  if (!token || token === 'null' || token === 'undefined') return;
+  try {
+    token = decodeURIComponent(token);
+  } catch {
+    /* already decoded */
   }
+  if (!tokens.includes(token)) tokens.push(token);
+}
+
+/** Every credential the browser might have sent. A bad Authorization must not hide a good cookie. */
+export function candidateTokens(req) {
+  const tokens = [];
+  // Custom header: Vercel rewrites sometimes drop Authorization before the function runs.
+  remember(tokens, req.headers.get('x-review-token'));
+  remember(tokens, req.headers.get('authorization'));
   const cookie = req.headers.get('cookie') || '';
-  const match = cookie.match(new RegExp(`${COOKIE}=([^;]+)`));
-  return match ? decodeURIComponent(match[1]) : null;
+  const match = cookie.match(new RegExp(`(?:^|;\\s*)${COOKIE}=([^;]+)`));
+  if (match) remember(tokens, match[1]);
+  return tokens;
+}
+
+export function parseAuth(req) {
+  return candidateTokens(req)[0] || null;
 }
 
 export async function getUser(req) {
-  const token = parseAuth(req);
-  return verifyToken(token);
+  for (const token of candidateTokens(req)) {
+    const user = await verifyToken(token);
+    if (user) return user;
+  }
+  return null;
 }
 
 export function sessionCookie(token) {
